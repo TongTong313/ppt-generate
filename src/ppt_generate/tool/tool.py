@@ -10,12 +10,8 @@ import PyPDF2
 import pdfplumber
 import sympy
 from sympy import symbols, simplify, latex
-from mcp.server.fastmcp import FastMCP
-
-mcp = FastMCP()
 
 
-@mcp.tool()
 async def pdf_to_text(pdf_path: str,
                       start_page: Optional[int] = None,
                       end_page: Optional[int] = None) -> Dict[str, Any]:
@@ -104,21 +100,3 @@ async def pdf_to_text(pdf_path: str,
             "pages_processed": 0,
             "error": f"处理PDF文件时出错: {str(e)}"
         }
-
-
-async def main():
-    tool_list = await mcp.list_tools()
-    tool = tool_list[0]
-    print(tool.name)
-    print(tool.description)
-    print(tool.inputSchema)
-    print(tool.outputSchema)
-    print(tool.annotations)
-    tool.inputSchema = 'hahaha'
-    print(tool.inputSchema)
-    print(tool)
-
-
-if __name__ == "__main__":
-    # 异步读取mcp的工具列表
-    asyncio.run(main())
