@@ -1,5 +1,0 @@
-langgraph>=0.5.1
-mcp[cli]>=1.10.1
-pdfplumber>=0.11.7
-pypdf2>=3.0.1
-sympy>=1.14.0

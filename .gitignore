@@ -1,0 +1,14 @@
+.DS_Store
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.ckpt
+*.bz2
+*.dat
+*.pkl
+*.onnx
+*.zip
+*.whl
+*.egg-info/
+data/
