@@ -15,23 +15,37 @@ class MCPClient:
             api_key: str = os.getenv("DASHSCOPE_API_KEY", ""),
             base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     ):
-        # Initialize session and client objects
+        # 初始化会话和客户端对象
         self.session: Optional[ClientSession] = None
-        self.exit_stack = AsyncExitStack()
-        self.llm_cli = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.llm = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
-    async def connect_to_streamable_http_server(self,
-                                                server_url: str,
-                                                headers: Optional[dict] = None
-                                                ):
-        """Connect to an MCP server running with HTTP Streamable transport"""
-        self._streams_context = streamablehttp_client(
-            url=server_url,
-            headers=headers or {},
-        )
+    async def connect_to_streamable_http_server(
+        self,
+        server_url: str,
+    ):
+        """
+        连接到运行 HTTP Streamable 传输的 MCP 服务器
+        
+        Args:
+            server_url: MCP 服务器的 URL 地址
+            headers: 可选的 HTTP 请求头字典
+        """
+        # 创建 HTTP 流式传输客户端上下文
+        # 使用 streamablehttp_client 建立与服务器的连接
+        self._streams_context = streamablehttp_client(url=server_url)
+
+        # 异步进入流上下文管理器，获取读写流
+        # read_stream: 用于从服务器读取数据的流
+        # write_stream: 用于向服务器写入数据的流
+        # 第三个返回值用 _ 忽略（通常是连接信息）
         read_stream, write_stream, _ = await self._streams_context.__aenter__()
 
+        # 使用读写流创建 MCP 客户端会话上下文
+        # ClientSession 是 MCP 协议的核心会话对象
         self._session_context = ClientSession(read_stream, write_stream)
+
+        # 异步进入会话上下文管理器，获取活跃的会话对象
+        # 这个会话将用于后续的工具调用和消息处理
         self.session: ClientSession = await self._session_context.__aenter__()
 
         await self.session.initialize()
@@ -50,10 +64,9 @@ class MCPClient:
                 "parameters": tool.inputSchema,
             }
         } for tool in response.tools]
-        print(available_tools)
 
-        # Initial OpenAI API call
-        response = await self.llm_cli.chat.completions.create(
+        # 和大模型对话
+        response = await self.llm.chat.completions.create(
             model="qwen-plus",
             max_tokens=1000,
             messages=messages,
@@ -119,21 +132,3 @@ class MCPClient:
             await self._session_context.__aexit__(None, None, None)
         if self._streams_context:  # pylint: disable=W0125
             await self._streams_context.__aexit__(None, None, None)
-
-
-async def main():
-    client = MCPClient()
-
-    try:
-        await client.connect_to_streamable_http_server(
-            f"http://127.0.0.1:8888/mcp")
-        await client.chat_loop()
-    except Exception as e:
-        print(f"Error: {str(e)}")
-    # finally:
-    #     print("MCP Client Stopped!")
-    #     await client.cleanup()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

@@ -10,6 +10,7 @@ import PyPDF2
 import pdfplumber
 import sympy
 from sympy import symbols, simplify, latex
+from datetime import datetime
 
 
 async def pdf_to_text(pdf_path: str,
@@ -100,3 +101,10 @@ async def pdf_to_text(pdf_path: str,
             "pages_processed": 0,
             "error": f"处理PDF文件时出错: {str(e)}"
         }
+
+
+async def get_current_time() -> str:
+    """
+    获取当前时间, 格式为: 2025-07-11 10:00:00
+    """
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
