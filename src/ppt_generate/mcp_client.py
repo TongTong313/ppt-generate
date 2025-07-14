@@ -113,7 +113,7 @@ class MCPClient:
             try:
                 query = input("\n请输入问题：").strip()
 
-                if query.lower() == "quit":
+                if query.lower() == "quit" or query == "再见":
                     break
 
                 response = await self.process_query(query)
