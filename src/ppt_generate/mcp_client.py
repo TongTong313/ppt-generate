@@ -27,7 +27,6 @@ class MCPClient:
         
         Args:
             server_url: MCP 服务器的 URL 地址
-            headers: 可选的 HTTP 请求头字典
         """
         # 创建 HTTP 流式传输客户端上下文
         # 使用 streamablehttp_client 建立与服务器的连接，此时还没有真正链接
@@ -107,7 +106,7 @@ class MCPClient:
     async def chat_loop(self):
         """循环对话保证不中断"""
         print("\n童发发的MCP客户端启动！")
-        print("输入'quit'退出")
+        print("输入'quit'或'再见'退出")
 
         while True:
             try:
