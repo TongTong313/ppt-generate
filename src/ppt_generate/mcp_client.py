@@ -86,6 +86,7 @@ class MCPClient:
 
                 # 这里的result是MCP协议字段，不可以直接用
                 result = await self.session.call_tool(tool_name, tool_args)
+                print(result.content[0])
 
                 messages.append({
                     "role": "tool",
