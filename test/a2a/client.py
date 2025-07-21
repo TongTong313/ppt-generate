@@ -64,9 +64,9 @@ async def main() -> None:
         )
 
         # 都是pydantic模型
-        # 非流式请求
+        # 非流式请求，供参考，代码比较简单
         # request = SendMessageRequest(
-        #     id=str(uuid4()), params=MessageSendParams(**send_message_payload)
+        #     id=str(uuid4()), params=MessageSendParams(message=send_message_payload)
         # )
         # print(f"非流式请求：{request}")
 

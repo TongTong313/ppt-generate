@@ -5,11 +5,8 @@ from a2a.server.request_handlers import DefaultRequestHandler
 import os
 from a2a.server.tasks import (
     InMemoryTaskStore,
-    BasePushNotificationSender,
-    InMemoryPushNotificationConfigStore,
 )
 import uvicorn
-import httpx
 
 if __name__ == "__main__":
     skill = AgentSkill(
@@ -40,11 +37,6 @@ if __name__ == "__main__":
             )
         ),
         task_store=InMemoryTaskStore(),
-        push_config_store=InMemoryPushNotificationConfigStore(),
-        push_sender=BasePushNotificationSender(
-            httpx_client=httpx.AsyncClient(),
-            config_store=InMemoryPushNotificationConfigStore(),
-        ),
     )
 
     server = A2AStarletteApplication(

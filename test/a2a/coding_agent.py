@@ -115,51 +115,53 @@ class CodingAgentExecutor(AgentExecutor):
         }
         messages = [message]
 
-        if not self.agent.stream:
-            # 非流式输出
-            response = await self.agent.invoke(messages)
-            await event_queue.enqueue_event(new_agent_text_message(response))
-        else:
-            # 找到当前任务
-            task = context.current_task
-            if not task:
-                task = new_task(context.message)
-                context.current_task = task
-                await event_queue.enqueue_event(task)
-            updater = TaskUpdater(event_queue, task.id, task.contextId)
+        # 非流式输出基本没有实用价值，代码也简单，暂不考虑……
+        # if not self.agent.stream:
+        #     # 非流式输出
+        #     response = await self.agent.invoke(messages)
+        #     await event_queue.enqueue_event(new_agent_text_message(response))
+        # else:
 
-            try:
-                # 解析了A2A Client发来的请求，就可以让Server智能体干活了，按照正常逻辑进行调用，需要注意执行过程和结束都需要跟Client保持通信，要不断更新当前任务的状态
-                async for chunk in self.agent.invoke_stream(messages):
-                    is_stream = chunk.get("is_stream")
-                    content = chunk.get("content")
-                    if is_stream:
-                        await updater.update_status(
-                            TaskState.working,
-                            new_agent_text_message(
-                                content,
-                                task.contextId,
-                                task.id,
-                            ),
-                        )
-                    else:
-                        # 不是流式，证明任务完成了，加一个工件
-                        await updater.add_artifact(
-                            [Part(root=TextPart(text=content))],
-                            name="conversion_result",
-                        )
-                        await updater.complete()
-                        break
+        # 找到当前任务
+        task = context.current_task
+        if not task:
+            task = new_task(context.message)
+            context.current_task = task
+            await event_queue.enqueue_event(task)
+        updater = TaskUpdater(event_queue, task.id, task.contextId)
 
-            except Exception as e:
-                await updater.update_status(
-                    TaskState.failed,
-                    new_agent_text_message(
-                        str(e),
-                        task.contextId,
-                        task.id,
-                    ),
-                )
+        try:
+            # 解析了A2A Client发来的请求，就可以让Server智能体干活了，按照正常逻辑进行调用，需要注意执行过程和结束都需要跟Client保持通信，要不断更新当前任务的状态
+            async for chunk in self.agent.invoke_stream(messages):
+                is_stream = chunk.get("is_stream")
+                content = chunk.get("content")
+                if is_stream:
+                    await updater.update_status(
+                        TaskState.working,
+                        new_agent_text_message(
+                            content,
+                            task.contextId,
+                            task.id,
+                        ),
+                    )
+                else:
+                    # 不是流式，证明任务完成了，加一个工件
+                    await updater.add_artifact(
+                        [Part(root=TextPart(text=content))],
+                        name="conversion_result",
+                    )
+                    await updater.complete()
+                    break
+
+        except Exception as e:
+            await updater.update_status(
+                TaskState.failed,
+                new_agent_text_message(
+                    str(e),
+                    task.contextId,
+                    task.id,
+                ),
+            )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         raise Exception("cancel not supported")
