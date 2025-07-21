@@ -2,7 +2,7 @@ import logging
 import httpx
 from typing import Dict, Any
 from uuid import uuid4
-from a2a.types import AgentCard
+from a2a.types import AgentCard, Message, TextPart
 from a2a.client import A2AClient, A2ACardResolver
 from a2a.types import SendMessageRequest, MessageSendParams, SendStreamingMessageRequest
 
@@ -49,33 +49,40 @@ async def main() -> None:
             logger.error(f"初始化client失败，错误信息为：{e}")
             raise RuntimeError(f"初始化client失败，无法继续运行") from e
 
-        send_message_payload: Dict[str, Any] = {
-            "message": {
-                "role": "user",
-                "parts": [{"kind": "text", "text": "帮我写一段快速排序代码"}],
-                "messageId": uuid4().hex,
-            },
-        }
+        # send_message_payload: Dict[str, Any] = {
+        #     "message": {
+        #         "role": "user",
+        #         "parts": [{"kind": "text", "text": "帮我写一段快速排序代码"}],
+        #         "messageId": uuid4().hex,
+        #     },
+        # }
+
+        send_message_payload: Message = Message(
+            role="user",
+            parts=[TextPart(text="帮我写一段快速排序代码")],
+            messageId=uuid4().hex,
+        )
 
         # 都是pydantic模型
         # 非流式请求
-        request = SendMessageRequest(
-            id=str(uuid4()), params=MessageSendParams(**send_message_payload)
-        )
-        print(f"非流式请求：{request}")
+        # request = SendMessageRequest(
+        #     id=str(uuid4()), params=MessageSendParams(**send_message_payload)
+        # )
+        # print(f"非流式请求：{request}")
 
-        response = await client.send_message(request)
-        print(response.model_dump(mode="json", exclude_none=True))
+        # response = await client.send_message(request)
+        # print(response.model_dump(mode="json", exclude_none=True))
 
         # 流式请求
         streaming_request = SendStreamingMessageRequest(
-            id=str(uuid4()), params=MessageSendParams(**send_message_payload)
+            id=str(uuid4()), params=MessageSendParams(message=send_message_payload)
         )
 
         stream_response = client.send_message_streaming(streaming_request)
 
         async for chunk in stream_response:
-            print(chunk.model_dump(mode="json", exclude_none=True))
+            # print(chunk.model_dump(mode="json", exclude_none=True))
+            print(chunk)
 
 
 if __name__ == "__main__":

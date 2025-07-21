@@ -9,6 +9,7 @@ from a2a.server.tasks import (
     InMemoryPushNotificationConfigStore,
 )
 import uvicorn
+import httpx
 
 if __name__ == "__main__":
     skill = AgentSkill(
@@ -35,11 +36,15 @@ if __name__ == "__main__":
             agent=CodingAgent(
                 api_key=os.getenv("DASHSCOPE_API_KEY"),
                 base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                stream=True,
             )
         ),
         task_store=InMemoryTaskStore(),
         push_config_store=InMemoryPushNotificationConfigStore(),
-        push_sender=BasePushNotificationSender(),
+        push_sender=BasePushNotificationSender(
+            httpx_client=httpx.AsyncClient(),
+            config_store=InMemoryPushNotificationConfigStore(),
+        ),
     )
 
     server = A2AStarletteApplication(
