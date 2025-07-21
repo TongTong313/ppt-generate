@@ -14,8 +14,9 @@ B站首页：[Double童发发](https://space.bilibili.com/323109608)
 ### MCP相关代码
     - src/tool/mcp_server.py
     - src/mcp_client.py
-    - test_run_client.py
-    - test_run_server.py
+    - test/mcp/*.py
 
+### A2A相关代码
+    - test/a2a/*.py
 
 欢迎大家来B站关注我，后续会分享更多硬核内容，也别忘了给本项目点个star哦~

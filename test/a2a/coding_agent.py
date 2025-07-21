@@ -7,6 +7,8 @@ from a2a.server.agent_execution.context import RequestContext
 from a2a.server.events.event_queue import EventQueue
 from a2a.utils import new_agent_text_message
 
+# server是专家智能体，基本不用改变智能体原有的逻辑
+
 
 class CodingAgent:
     def __init__(
@@ -64,7 +66,8 @@ class CodingAgentExecutor(AgentExecutor):
 
         message = {
             "role": "user" if context.message.role == "user" else "assistant",
-            "content": context.message.parts[0].root.text,
+            # "content": context.message.parts[0].root.text,
+            "content": context.get_user_input(),
         }
         messages = [message]
 

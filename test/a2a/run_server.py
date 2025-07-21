@@ -1,9 +1,13 @@
 from a2a.types import AgentCard, AgentSkill, AgentCapabilities
-from server import CodingAgentExecutor, CodingAgent
+from coding_agent import CodingAgentExecutor, CodingAgent
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 import os
-from a2a.server.tasks import InMemoryTaskStore
+from a2a.server.tasks import (
+    InMemoryTaskStore,
+    BasePushNotificationSender,
+    InMemoryPushNotificationConfigStore,
+)
 import uvicorn
 
 if __name__ == "__main__":
@@ -34,6 +38,8 @@ if __name__ == "__main__":
             )
         ),
         task_store=InMemoryTaskStore(),
+        push_config_store=InMemoryPushNotificationConfigStore(),
+        push_sender=BasePushNotificationSender(),
     )
 
     server = A2AStarletteApplication(
