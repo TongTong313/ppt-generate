@@ -13,12 +13,13 @@ class EntryAgent:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)  # 获得logger实例
 
-    async def invoke_agent(self, base_url: str) -> AsyncIterator[Dict[str, Any]]:
+    async def invoke(self, base_url: str, prompt: str) -> AsyncIterator[Dict[str, Any]]:
         """
-        调用智能体
+        调用该智能体，通过A2A协议与server智能体进行交互
 
         Args:
             base_url (str): server智能体的url
+            prompt (str): 智能体的输入提示
 
         Returns:
             AsyncIterator[Dict[str, Any]]: server智能体的响应流
@@ -61,11 +62,11 @@ class EntryAgent:
             # A2A协议规定的标准Message数据格式
             send_message_payload: Message = Message(
                 role="user",
-                parts=[TextPart(text="帮我写一段python的快速排序代码")],
-                messageId=uuid4().hex,
+                parts=[TextPart(text=prompt)],
+                message_id=uuid4().hex,
             )
 
-            # 流式请求：使用A2A SDJ封装好的SendStreamingMessageRequest
+            # 流式请求：使用A2A SDK封装好的SendStreamingMessageRequest
             streaming_request = SendStreamingMessageRequest(
                 id=str(uuid4()), params=MessageSendParams(message=send_message_payload)
             )

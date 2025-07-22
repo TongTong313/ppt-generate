@@ -1,4 +1,3 @@
-from email import message
 from a2a.server.agent_execution import AgentExecutor
 from openai import AsyncOpenAI
 from typing import Literal, Optional, List, AsyncIterable, Dict, Any
@@ -11,8 +10,6 @@ from a2a.types import TaskState, Part, TextPart
 
 
 # server是专家智能体，基本不用改变智能体原有的逻辑
-
-
 class CodingAgent:
     def __init__(
         self,
@@ -58,8 +55,6 @@ class CodingAgent:
             tool_choice=self.tool_choice,
         )
         collected_content = []
-        # collected_tool_calls = []
-        # current_tool_call = None
 
         async for chunk in response:
             if chunk.choices[0].delta.content:
@@ -113,10 +108,11 @@ class CodingAgentExecutor(AgentExecutor):
                         ),
                     )
                 else:
-                    # 不是流式，证明任务完成了，加一个工件
+                    # 任务完成了，加一个工件artifact
                     await updater.add_artifact(
-                        [Part(root=TextPart(text=content))],
+                        parts=[Part(root=TextPart(text=content))],
                         name="coding_result",
+                        last_chunk=True,
                     )
                     await updater.complete()
                     break
