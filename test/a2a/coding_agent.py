@@ -1,7 +1,7 @@
 from email import message
 from a2a.server.agent_execution import AgentExecutor
 from openai import AsyncOpenAI
-from typing import Literal, Optional, List, AsyncIterable
+from typing import Literal, Optional, List, AsyncIterable, Dict, Any
 import os
 from a2a.server.agent_execution.context import RequestContext
 from a2a.server.events.event_queue import EventQueue
@@ -23,7 +23,6 @@ class CodingAgent:
         tool_choice: Literal["auto", "required", "none"] = "auto",
         temperature: float = 0.7,
         max_tokens: int = 1000,
-        stream: bool = False,
         enable_thinking: Optional[bool] = None,
     ) -> None:
         self.api_key = api_key
@@ -31,7 +30,6 @@ class CodingAgent:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.stream = stream
         self.enable_thinking = enable_thinking
         self.tool_choice = tool_choice
 
@@ -40,32 +38,9 @@ class CodingAgent:
             base_url=self.base_url,
         )
 
-    async def invoke(self, messages: List[dict[str, str]]) -> str:
-        system_prompt = [
-            {
-                "role": "system",
-                "content": "你是一个代码助手，根据用户的输入，生成对应的代码。注意你只能写代码，遇到不是代码的问题需要你反问用户，让用户明确需求",
-            }
-        ]
-        messages = system_prompt + messages
-
-        # 非流式输出
-        if not self.stream:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                stream=self.stream,
-                tool_choice=self.tool_choice,
-            )
-            return response.choices[0].message.content
-        else:
-            # 流式输出模式下，invoke方法不应该被调用
-            # 应该直接使用invoke_stream方法
-            raise ValueError("在流式模式下，请直接使用invoke_stream方法")
-
-    async def invoke_stream(self, messages: List[dict[str, str]]) -> AsyncIterable[str]:
+    async def stream(
+        self, messages: List[dict[str, str]]
+    ) -> AsyncIterable[Dict[str, Any]]:
         system_prompt = [
             {
                 "role": "system",
@@ -79,7 +54,7 @@ class CodingAgent:
             messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
-            stream=self.stream,
+            stream=True,  # 代码问题必须流式输出！
             tool_choice=self.tool_choice,
         )
         collected_content = []
@@ -90,12 +65,12 @@ class CodingAgent:
             if chunk.choices[0].delta.content:
                 collected_content.append(chunk.choices[0].delta.content)
                 yield {
-                    "is_stream": True,
+                    "is_final_answer": False,
                     "content": chunk.choices[0].delta.content,
                 }
 
         yield {
-            "is_stream": False,
+            "is_final_answer": True,
             "content": "".join(collected_content),
         }
 
@@ -115,32 +90,25 @@ class CodingAgentExecutor(AgentExecutor):
         }
         messages = [message]
 
-        # 非流式输出基本没有实用价值，代码也简单，暂不考虑……
-        # if not self.agent.stream:
-        #     # 非流式输出
-        #     response = await self.agent.invoke(messages)
-        #     await event_queue.enqueue_event(new_agent_text_message(response))
-        # else:
-
         # 找到当前任务
         task = context.current_task
         if not task:
             task = new_task(context.message)
             context.current_task = task
             await event_queue.enqueue_event(task)
-        updater = TaskUpdater(event_queue, task.id, task.contextId)
+        updater = TaskUpdater(event_queue, task.id, task.context_id)
 
         try:
             # 解析了A2A Client发来的请求，就可以让Server智能体干活了，按照正常逻辑进行调用，需要注意执行过程和结束都需要跟Client保持通信，要不断更新当前任务的状态
-            async for chunk in self.agent.invoke_stream(messages):
-                is_stream = chunk.get("is_stream")
+            async for chunk in self.agent.stream(messages):
+                is_final_answer = chunk.get("is_final_answer")
                 content = chunk.get("content")
-                if is_stream:
+                if not is_final_answer:
                     await updater.update_status(
                         TaskState.working,
                         new_agent_text_message(
                             content,
-                            task.contextId,
+                            task.context_id,
                             task.id,
                         ),
                     )
@@ -148,7 +116,7 @@ class CodingAgentExecutor(AgentExecutor):
                     # 不是流式，证明任务完成了，加一个工件
                     await updater.add_artifact(
                         [Part(root=TextPart(text=content))],
-                        name="conversion_result",
+                        name="coding_result",
                     )
                     await updater.complete()
                     break
@@ -158,7 +126,7 @@ class CodingAgentExecutor(AgentExecutor):
                 TaskState.failed,
                 new_agent_text_message(
                     str(e),
-                    task.contextId,
+                    task.context_id,
                     task.id,
                 ),
             )
