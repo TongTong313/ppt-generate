@@ -6,12 +6,18 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "a2a-sdk>=0.2.16",
+    "beautifulsoup4>=4.13.4",
+    "cssutils>=2.11.1",
     "langgraph>=0.5.1",
     "mcp[cli]>=1.10.1",
     "openai>=1.93.3",
+    "pdfkit>=1.0.0",
     "pdfplumber>=0.11.7",
     "pypdf2>=3.0.1",
+    "python-pptx>=1.0.2",
     "sympy>=1.14.0",
+    "weasyprint>=65.1",
+    "xhtml2pdf>=0.2.17",
 ]
 
 [[tool.uv.index]]
