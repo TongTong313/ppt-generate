@@ -1,0 +1,558 @@
+/* 复杂PPT模板CSS - 支持多种布局和样式 */
+
+/* 基础样式 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Microsoft YaHei', 'PingFang SC', Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  line-height: 1.6;
+}
+
+/* 幻灯片容器基础样式 */
+.slide-container {
+  width: 1280px;
+  height: 720px;
+  margin: 40px auto;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  padding: 60px 80px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  page-break-after: always;
+}
+
+/* 标题幻灯片样式 */
+.title-slide {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.title-slide::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="80" r="3" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="70" r="1" fill="rgba(255,255,255,0.1)"/></svg>');
+  opacity: 0.3;
+}
+
+.logo {
+  font-size: 72px;
+  margin-bottom: 30px;
+  z-index: 2;
+  position: relative;
+}
+
+.main-title {
+  font-size: 52px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+  position: relative;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 32px;
+  font-weight: 300;
+  margin-bottom: 40px;
+  opacity: 0.9;
+  z-index: 2;
+  position: relative;
+  line-height: 1.3;
+}
+
+.author {
+  font-size: 20px;
+  opacity: 0.8;
+  font-weight: 400;
+  z-index: 2;
+  position: relative;
+  line-height: 1.4;
+}
+
+.bottom-decoration {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
+}
+
+/* 内容幻灯片样式 */
+.content-slide {
+  background: #ffffff;
+}
+
+.slide-title {
+  font-size: 44px;
+  color: #2c3e50;
+  font-weight: 700;
+  margin-bottom: 40px;
+  text-align: center;
+  line-height: 1.2;
+  position: relative;
+}
+
+.slide-title::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 2px;
+}
+
+.content-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 目录列表样式 */
+.toc-list {
+  list-style: none;
+  padding: 0;
+  width: 100%;
+  max-width: 800px;
+}
+
+.toc-item {
+  display: flex;
+  align-items: center;
+  padding: 20px 30px;
+  margin-bottom: 16px;
+  background: linear-gradient(90deg, #f8f9fa, #ffffff);
+  border-radius: 12px;
+  border-left: 6px solid #667eea;
+  font-size: 24px;
+  color: #34495e;
+  transition: all 0.3s ease;
+  line-height: 1.5;
+}
+
+.chapter-num {
+  background: #667eea;
+  color: white;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 18px;
+  margin-right: 24px;
+  flex-shrink: 0;
+}
+
+/* 数据展示幻灯片 */
+.data-slide {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.data-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  flex: 1;
+  margin: 40px 0;
+}
+
+.stat-box {
+  text-align: center;
+  padding: 40px 30px;
+  border-radius: 20px;
+  min-width: 200px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.stat-box.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.stat-box.secondary {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.stat-box.tertiary {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+.stat-number {
+  font-size: 48px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 16px;
+  opacity: 0.9;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.data-note {
+  text-align: center;
+  font-size: 14px;
+  color: #7f8c8d;
+  font-style: italic;
+  margin-top: 20px;
+  line-height: 1.4;
+}
+
+/* 双栏布局 */
+.two-column-slide {
+  background: #ffffff;
+}
+
+.two-column-container {
+  display: flex;
+  gap: 60px;
+  flex: 1;
+  align-items: stretch;
+}
+
+.left-column, .right-column {
+  flex: 1;
+  padding: 30px;
+  border-radius: 16px;
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+}
+
+.left-column {
+  border-left: 6px solid #e74c3c;
+}
+
+.right-column {
+  border-left: 6px solid #27ae60;
+}
+
+.column-title {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 30px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.left-column .column-title {
+  color: #e74c3c;
+}
+
+.right-column .column-title {
+  color: #27ae60;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+}
+
+.feature-item {
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.feature-item.negative {
+  background: rgba(231, 76, 60, 0.1);
+  color: #c0392b;
+  border-left: 4px solid #e74c3c;
+}
+
+.feature-item.positive {
+  background: rgba(39, 174, 96, 0.1);
+  color: #27ae60;
+  border-left: 4px solid #27ae60;
+}
+
+/* 图表样式 */
+.chart-slide {
+  background: #ffffff;
+}
+
+.chart-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 25px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.chart-item {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.chart-bar {
+  flex: 1;
+  height: 40px;
+  background: #e9ecef;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 20px;
+  transition: width 0.8s ease;
+}
+
+.chart-label {
+  min-width: 140px;
+  font-size: 18px;
+  color: #34495e;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.chart-value {
+  min-width: 60px;
+  text-align: right;
+  font-size: 20px;
+  font-weight: 600;
+  color: #667eea;
+}
+
+/* 引用和代码样式 */
+.quote-slide {
+  background: #ffffff;
+}
+
+.quote-box {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 40px;
+  border-radius: 16px;
+  margin: 30px 0;
+  font-size: 22px;
+  font-style: italic;
+  text-align: center;
+  position: relative;
+  line-height: 1.6;
+}
+
+.quote-box::before {
+  content: '"';
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  font-size: 80px;
+  opacity: 0.3;
+  font-family: serif;
+}
+
+.quote-box cite {
+  display: block;
+  margin-top: 20px;
+  font-size: 16px;
+  opacity: 0.8;
+  font-style: normal;
+  text-align: right;
+}
+
+.code-container {
+  margin-top: 30px;
+}
+
+.code-container h4 {
+  font-size: 20px;
+  color: #2c3e50;
+  margin-bottom: 16px;
+  line-height: 1.3;
+}
+
+.code-block {
+  background: #2d3748;
+  color: #e2e8f0;
+  padding: 24px;
+  border-radius: 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: auto;
+  border-left: 4px solid #667eea;
+}
+
+/* 总结页样式 */
+.conclusion-slide {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.insights-container {
+  display: flex;
+  justify-content: space-around;
+  gap: 30px;
+  margin: 40px 0;
+  flex: 1;
+  align-items: center;
+}
+
+.insight-card {
+  background: white;
+  padding: 40px 30px;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  max-width: 300px;
+}
+
+.insight-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.insight-card h3 {
+  font-size: 24px;
+  color: #2c3e50;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.insight-card p {
+  font-size: 16px;
+  color: #7f8c8d;
+  line-height: 1.5;
+}
+
+.call-to-action {
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  color: white;
+  padding: 30px;
+  border-radius: 16px;
+  text-align: center;
+  margin-top: 30px;
+}
+
+.cta-text {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* 感谢页样式 */
+.thank-you-slide {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+}
+
+.thank-you-content {
+  z-index: 2;
+  position: relative;
+}
+
+.thank-you-title {
+  font-size: 64px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  line-height: 1.1;
+}
+
+.thank-you-subtitle {
+  font-size: 36px;
+  font-weight: 300;
+  margin-bottom: 50px;
+  opacity: 0.9;
+  line-height: 1.2;
+}
+
+.contact-info {
+  font-size: 20px;
+  margin-bottom: 40px;
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
+.social-links {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.social-link {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 16px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 通用元素样式 */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+p {
+  margin-bottom: 16px;
+  color: #34495e;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+ul, ol {
+  margin-bottom: 20px;
+  padding-left: 30px;
+}
+
+li {
+  margin-bottom: 8px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+/* 响应式调整 */
+@media print {
+  .slide-container {
+    page-break-after: always;
+    margin: 0;
+    box-shadow: none;
+  }
+  
+  body {
+    background: white;
+  }
+} 

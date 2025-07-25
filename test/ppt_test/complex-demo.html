@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>复杂PPT演示测试</title>
+  <link rel="stylesheet" href="complex-template.css">
+</head>
+<body>
+  <!-- 幻灯片1：标题页，带背景和logo -->
+  <div class="slide-container title-slide">
+    <div class="logo">🚀</div>
+    <h1 class="main-title">人工智能技术发展报告</h1>
+    <h2 class="subtitle">2024年度深度分析</h2>
+    <p class="author">技术研究部 | 2024年12月</p>
+    <div class="bottom-decoration"></div>
+  </div>
+
+  <!-- 幻灯片2：目录页 -->
+  <div class="slide-container content-slide">
+    <h1 class="slide-title">报告目录</h1>
+    <div class="content-area">
+      <ol class="toc-list">
+        <li class="toc-item"><span class="chapter-num">01</span>技术现状分析</li>
+        <li class="toc-item"><span class="chapter-num">02</span>市场发展趋势</li>
+        <li class="toc-item"><span class="chapter-num">03</span>核心技术突破</li>
+        <li class="toc-item"><span class="chapter-num">04</span>应用场景扩展</li>
+        <li class="toc-item"><span class="chapter-num">05</span>未来发展预测</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- 幻灯片3：数据展示页 -->
+  <div class="slide-container data-slide">
+    <h1 class="slide-title">市场规模增长</h1>
+    <div class="data-container">
+      <div class="stat-box primary">
+        <div class="stat-number">$127B</div>
+        <div class="stat-label">2024年市场规模</div>
+      </div>
+      <div class="stat-box secondary">
+        <div class="stat-number">45%</div>
+        <div class="stat-label">年增长率</div>
+      </div>
+      <div class="stat-box tertiary">
+        <div class="stat-number">2030</div>
+        <div class="stat-label">预计突破$500B</div>
+      </div>
+    </div>
+    <p class="data-note">*数据来源：全球AI市场研究报告</p>
+  </div>
+
+  <!-- 幻灯片4：双栏布局 -->
+  <div class="slide-container two-column-slide">
+    <h1 class="slide-title">技术发展对比</h1>
+    <div class="two-column-container">
+      <div class="left-column">
+        <h3 class="column-title">传统方法</h3>
+        <ul class="feature-list">
+          <li class="feature-item negative">⚠️ 规则驱动，灵活性差</li>
+          <li class="feature-item negative">⚠️ 需要大量人工标注</li>
+          <li class="feature-item negative">⚠️ 泛化能力有限</li>
+          <li class="feature-item negative">⚠️ 维护成本高</li>
+        </ul>
+      </div>
+      <div class="right-column">
+        <h3 class="column-title">AI驱动方法</h3>
+        <ul class="feature-list">
+          <li class="feature-item positive">✅ 自适应学习能力</li>
+          <li class="feature-item positive">✅ 端到端训练</li>
+          <li class="feature-item positive">✅ 强泛化性能</li>
+          <li class="feature-item positive">✅ 持续优化</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 幻灯片5：图表样式 -->
+  <div class="slide-container chart-slide">
+    <h1 class="slide-title">技术成熟度评估</h1>
+    <div class="chart-container">
+      <div class="chart-item">
+        <div class="chart-bar">
+          <div class="bar-fill" style="width: 85%"></div>
+        </div>
+        <div class="chart-label">自然语言处理</div>
+        <div class="chart-value">85%</div>
+      </div>
+      <div class="chart-item">
+        <div class="chart-bar">
+          <div class="bar-fill" style="width: 78%"></div>
+        </div>
+        <div class="chart-label">计算机视觉</div>
+        <div class="chart-value">78%</div>
+      </div>
+      <div class="chart-item">
+        <div class="chart-bar">
+          <div class="bar-fill" style="width: 65%"></div>
+        </div>
+        <div class="chart-label">机器人技术</div>
+        <div class="chart-value">65%</div>
+      </div>
+      <div class="chart-item">
+        <div class="chart-bar">
+          <div class="bar-fill" style="width: 42%"></div>
+        </div>
+        <div class="chart-label">通用人工智能</div>
+        <div class="chart-value">42%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 幻灯片6：引用和代码 -->
+  <div class="slide-container quote-slide">
+    <h1 class="slide-title">核心算法示例</h1>
+    <blockquote class="quote-box">
+      "人工智能的真正挑战不在于让机器思考，而在于让它们理解世界的复杂性和不确定性。"
+      <cite>— AI研究先驱</cite>
+    </blockquote>
+    <div class="code-container">
+      <h4>Transformer架构核心代码：</h4>
+      <pre class="code-block">
+def attention(Q, K, V, mask=None):
+    d_k = Q.size(-1)
+    scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(d_k)
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, -1e9)
+    attention_weights = F.softmax(scores, dim=-1)
+    return torch.matmul(attention_weights, V)</pre>
+    </div>
+  </div>
+
+  <!-- 幻灯片7：总结页 -->
+  <div class="slide-container conclusion-slide">
+    <h1 class="slide-title">核心洞察</h1>
+    <div class="insights-container">
+      <div class="insight-card">
+        <div class="insight-icon">🎯</div>
+        <h3>精准定位</h3>
+        <p>AI技术正从概念验证转向产业化应用</p>
+      </div>
+      <div class="insight-card">
+        <div class="insight-icon">🚀</div>
+        <h3>加速发展</h3>
+        <p>大模型推动技术能力指数级提升</p>
+      </div>
+      <div class="insight-card">
+        <div class="insight-icon">🌐</div>
+        <h3>全面渗透</h3>
+        <p>跨行业应用场景持续扩展</p>
+      </div>
+    </div>
+    <div class="call-to-action">
+      <p class="cta-text">抓住AI发展机遇，引领未来创新</p>
+    </div>
+  </div>
+
+  <!-- 幻灯片8：感谢页 -->
+  <div class="slide-container thank-you-slide">
+    <div class="thank-you-content">
+      <h1 class="thank-you-title">谢谢聆听</h1>
+      <h2 class="thank-you-subtitle">Thank You</h2>
+      <p class="contact-info">联系方式：ai-research@company.com</p>
+      <div class="social-links">
+        <span class="social-link">🐦 @AIResearch</span>
+        <span class="social-link">📧 newsletter</span>
+        <span class="social-link">🔗 linkedin.com/ai</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html> 
