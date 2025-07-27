@@ -1,1659 +1,1446 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-HTML转PPT终极转换器
-解决文字丢失、背景丢失、版式丢失等问题
-确保HTML与PPT的最大一致性
+修复版HTML转PPT转换器
+解决生成多页、背景缺失、文本排版问题
 """
 
-import io
 import os
 import re
-import math
-import logging
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Dict, List, Any, Optional, Tuple
 from bs4 import BeautifulSoup, Tag, NavigableString
 from pptx import Presentation
-from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
-from pptx.enum.text import MSO_VERTICAL_ANCHOR, MSO_AUTO_SIZE, PP_PARAGRAPH_ALIGNMENT
-from pptx.enum.shapes import MSO_SHAPE
-from pptx.enum.dml import MSO_LINE_DASH_STYLE
-from pptx.shapes.shapetree import SlideShapes
+from pptx.enum.text import PP_PARAGRAPH_ALIGNMENT, MSO_AUTO_SIZE
+from pptx.dml.color import RGBColor
+from PIL import Image, ImageDraw
 import cssutils
-
-# 禁用cssutils的警告
-logging.getLogger('cssutils').setLevel(logging.ERROR)
+from dataclasses import dataclass
 
 
-class ConversionConfig:
-    """转换配置类"""
+@dataclass
+class TextStyle:
+    """文本样式配置
 
-    def __init__(self):
-        # 基础参数
-        self.SLIDE_WIDTH_INCHES = 13.33  # 1280px
-        self.SLIDE_HEIGHT_INCHES = 7.5  # 720px
-        self.PX_TO_INCHES = 1 / 96
+    Args:
+        font_size (int): 字体大小。
+        font_color (str): 字体颜色，默认值#333333（深灰色）。
+        bold (bool): 是否加粗，默认值False。
+        italic (bool): 是否斜体，默认值False。
+        alignment (str): 对齐方式，默认值left。
+        line_spacing (float): 行间距，默认值1.15。
+        space_before (int): 段落前间距，默认值0。
+        space_after (int): 段落后间距，默认值4。
+    """
 
-        # 默认样式
-        self.DEFAULT_FONT_SIZE = 18
-        self.DEFAULT_FONT_FAMILY = 'Microsoft YaHei'
-        self.DEFAULT_LINE_HEIGHT = 1.5
-        self.DEFAULT_TEXT_COLOR = '#000000'
-        self.DEFAULT_BACKGROUND_COLOR = '#ffffff'
-
-        # 布局参数
-        self.DEFAULT_PADDING = 60
-        self.ELEMENT_SPACING = 15
-        self.MIN_ELEMENT_HEIGHT = 0.3
-
-        # 功能开关
-        self.PRESERVE_BACKGROUND = True
-        self.PRESERVE_COLORS = True
-        self.PRESERVE_FONTS = True
-        self.PRESERVE_LAYOUT = True
-        self.AUTO_FIT_TEXT = True
-
-        # 调试选项
-        self.DEBUG_MODE = False
-        self.VERBOSE_LOGGING = False
+    font_size: int
+    font_color: str = "#333333"
+    bold: bool = False
+    italic: bool = False
+    alignment: str = "left"
+    line_spacing: float = 1.15
+    space_before: int = 0
+    space_after: int = 4
 
 
-class CSSProcessor:
-    """CSS处理器"""
+@dataclass
+class SlideConfig:
+    """幻灯片配置
 
-    def __init__(self, config: ConversionConfig):
-        self.config = config
+    Args:
+        width_inches (float): 幻灯片宽度，默认值13.33英寸（16:9 比例）。
+        height_inches (float): 幻灯片高度，默认值7.5英寸。
+        width_px (int): 幻灯片宽度，默认值1280像素。
+        height_px (int): 幻灯片高度，默认值720像素。
+        padding_top (float): 顶部内边距，默认值0.8英寸。
+        padding_bottom (float): 底部内边距，默认值0.6英寸。
+        padding_left (float): 左侧内边距，默认值1.0英寸。
+        padding_right (float): 右侧内边距，默认值1.0英寸。
+    """
 
-    def parse_css_file(self, css_content: str) -> Dict[str, Dict[str, str]]:
-        """解析CSS内容"""
-        try:
-            # 预处理CSS
-            css_content = self._preprocess_css(css_content)
+    width_inches: float = 13.33  # 16:9 比例
+    height_inches: float = 7.5
+    width_px: int = 1280
+    height_px: int = 720
+    padding_top: float = 0.8
+    padding_bottom: float = 0.6
+    padding_left: float = 1.0
+    padding_right: float = 1.0
+    default_font: str = "Microsoft YaHei"
 
-            # 解析CSS
-            sheet = cssutils.parseString(css_content)
-            styles = {}
+    def __post_init__(self):
+        """初始化文本样式配置，这里要针对不同的模板定制化输出，这个字体未必和html是保持一致的
 
-            for rule in sheet:
-                if rule.type == rule.STYLE_RULE:
-                    selector = rule.selectorText
-                    properties = {}
-
-                    for prop in rule.style:
-                        properties[prop.name] = prop.value
-
-                    if properties:
-                        styles[selector] = properties
-
-            return styles
-        except Exception as e:
-            if self.config.DEBUG_MODE:
-                print(f"CSS解析错误: {e}")
-            return {}
-
-    def _preprocess_css(self, css_content: str) -> str:
-        """预处理CSS，移除不支持的内容"""
-        # 移除@规则
-        css_content = re.sub(r'@[^{]+{[^}]*}', '', css_content)
-        css_content = re.sub(r'@media[^{]*{[^{}]*(?:{[^}]*}[^{}]*)*}', '',
-                             css_content)
-
-        # 移除伪元素和伪类
-        css_content = re.sub(r'::(before|after)[^}]*}', '', css_content)
-        css_content = re.sub(r':hover[^}]*}', '', css_content)
-        css_content = re.sub(r':focus[^}]*}', '', css_content)
-
-        # 简化复杂属性
-        css_content = re.sub(r'linear-gradient\([^)]+\)', '#f0f0f0',
-                             css_content)
-        css_content = re.sub(r'radial-gradient\([^)]+\)', '#f0f0f0',
-                             css_content)
-
-        # 移除不支持的属性
-        unsupported_props = [
-            'box-shadow', 'text-shadow', 'transform', 'transition',
-            'animation', 'filter', 'backdrop-filter', 'clip-path'
-        ]
-        for prop in unsupported_props:
-            css_content = re.sub(rf'{prop}[^;]*;', '', css_content)
-
-        return css_content
-
-    def compute_element_style(
-            self, element: Tag,
-            all_styles: Dict[str, Dict[str, str]]) -> Dict[str, str]:
-        """计算元素的最终样式"""
-        computed = {}
-
-        # 1. 通用标签样式
-        tag_name = element.name.lower()
-        for selector, style in all_styles.items():
-            if selector == tag_name:
-                computed.update(style)
-
-        # 2. 类样式
-        if element.has_attr('class'):
-            for class_name in element['class']:
-                for selector, style in all_styles.items():
-                    if selector == f'.{class_name}':
-                        computed.update(style)
-                    elif selector == f'{tag_name}.{class_name}':
-                        computed.update(style)
-
-        # 3. ID样式
-        if element.has_attr('id'):
-            id_name = element['id']
-            for selector, style in all_styles.items():
-                if selector == f'#{id_name}':
-                    computed.update(style)
-
-        # 4. 内联样式
-        if element.has_attr('style'):
-            inline_styles = self._parse_inline_style(element['style'])
-            computed.update(inline_styles)
-
-        return computed
-
-    def _parse_inline_style(self, style_str: str) -> Dict[str, str]:
-        """解析内联样式"""
-        styles = {}
-        for rule in style_str.split(';'):
-            if ':' in rule:
-                prop, value = rule.split(':', 1)
-                styles[prop.strip()] = value.strip()
-        return styles
-
-
-class LayoutAnalyzer:
-    """布局分析器"""
-
-    def __init__(self, config: ConversionConfig):
-        self.config = config
-
-    def analyze_slide_layout(
-            self, container: Tag,
-            styles: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
-        """分析幻灯片布局"""
-        layout_info = {
-            'type': 'standard',
-            'elements': [],
-            'columns': 1,
-            'has_title': False,
-            'has_subtitle': False,
-            'background': None
+        Attributes:
+            text_styles (Dict[str, TextStyle]): 文本样式配置字典，键为样式名称，值为TextStyle实例，具体包括：
+            main_title: 主标题
+            slide_title: 幻灯片标题
+            subtitle: 副标题
+            heading: 标题
+            body_text: 正文
+            list_item: 列表项
+            caption: 脚注
+            author: 作者
+        """
+        self.text_styles: Dict[str, TextStyle] = {
+            "main_title": TextStyle(
+                font_size=36,
+                font_color="#2c5aa0",
+                bold=True,
+                alignment="center",
+                space_after=8,
+            ),
+            "slide_title": TextStyle(
+                font_size=28,
+                font_color="#2c5aa0",
+                bold=True,
+                alignment="left",
+                space_after=6,
+            ),
+            "subtitle": TextStyle(
+                font_size=20,
+                font_color="#666666",
+                bold=False,
+                alignment="center",
+                space_after=6,
+            ),
+            "heading": TextStyle(
+                font_size=18,
+                font_color="#333333",
+                bold=True,
+                alignment="left",
+                space_after=4,
+            ),
+            "body_text": TextStyle(
+                font_size=14,
+                font_color="#555555",
+                bold=False,
+                alignment="left",
+                space_after=4,
+            ),
+            "list_item": TextStyle(
+                font_size=14,
+                font_color="#555555",
+                bold=False,
+                alignment="left",
+                space_after=3,
+            ),
+            "caption": TextStyle(
+                font_size=12,
+                font_color="#888888",
+                bold=False,
+                alignment="center",
+                italic=True,
+                space_after=3,
+            ),
+            "author": TextStyle(
+                font_size=16,
+                font_color="#888888",
+                bold=False,
+                alignment="center",
+                space_after=0,
+            ),
         }
 
-        # 检测布局类型
-        children = [
-            child for child in container.children if isinstance(child, Tag)
-        ]
 
-        # 检测标题
-        for child in children:
-            if child.name.lower() in ['h1', 'h2'
-                                      ] and not layout_info['has_title']:
-                layout_info['has_title'] = True
-                if child.name.lower() == 'h2':
-                    layout_info['has_subtitle'] = True
+class ColorHelper:
+    """颜色处理助手"""
 
-        # 检测多栏布局
-        flex_containers = [
-            child for child in children
-            if self._has_flex_display(child, styles)
-        ]
-        if flex_containers:
-            layout_info['type'] = 'multi_column'
-            layout_info['columns'] = len(flex_containers)
-
-        # 检测特殊布局
-        class_names = container.get('class', [])
-        for class_name in class_names:
-            if 'title' in class_name.lower():
-                layout_info['type'] = 'title_slide'
-            elif 'two-column' in class_name.lower():
-                layout_info['type'] = 'two_column'
-                layout_info['columns'] = 2
-            elif 'data' in class_name.lower():
-                layout_info['type'] = 'data_slide'
-
-        return layout_info
-
-    def _has_flex_display(self, element: Tag,
-                          styles: Dict[str, Dict[str, str]]) -> bool:
-        """检测元素是否使用flex布局"""
-        element_style = styles.get(f".{' '.join(element.get('class', []))}",
-                                   {})
-        return element_style.get('display') == 'flex'
-
-
-class TextProcessor:
-    """文本处理器"""
-
-    def __init__(self, config: ConversionConfig):
-        self.config = config
-
-    def extract_all_text_elements(
-            self, container: Tag,
-            styles: Dict[str, Dict[str, str]]) -> List[Dict[str, Any]]:
-        """提取所有可视化文本元素，按HTML结构创建独立文本框"""
-        text_elements = []
-
-        def _extract_structured(element: Tag,
-                                parent_style: Dict[str, str] = None) -> None:
-            """按结构化方式提取元素"""
-            tag_name = element.name.lower()
-            element_style = self._get_element_style(element, styles)
-
-            # 合并父级样式
-            if parent_style:
-                merged_style = parent_style.copy()
-                merged_style.update(element_style)
-                element_style = merged_style
-
-            # 处理块级元素
-            if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-                full_text = element.get_text().strip()
-                if full_text:
-                    text_elements.append({
-                        'type': 'heading',
-                        'content': full_text,
-                        'style': element_style,
-                        'tag': tag_name,
-                        'element_id': id(element)
-                    })
-
-            elif tag_name == 'p':
-                full_text = element.get_text().strip()
-                if full_text:
-                    text_elements.append({
-                        'type': 'paragraph',
-                        'content': full_text,
-                        'style': element_style,
-                        'tag': tag_name,
-                        'element_id': id(element)
-                    })
-
-            elif tag_name in ['ul', 'ol']:
-                list_items = []
-                for li in element.find_all('li', recursive=False):
-                    li_text = li.get_text().strip()
-                    if li_text:
-                        li_style = self._get_element_style(li, styles)
-                        merged_li_style = element_style.copy()
-                        merged_li_style.update(li_style)
-                        list_items.append({
-                            'content': li_text,
-                            'style': merged_li_style
-                        })
-
-                if list_items:
-                    text_elements.append({
-                        'type': 'list',
-                        'content': list_items,
-                        'style': element_style,
-                        'tag': tag_name,
-                        'list_type': tag_name,
-                        'element_id': id(element)
-                    })
-
-            elif tag_name == 'blockquote':
-                quote_text = element.get_text().strip()
-                if quote_text:
-                    text_elements.append({
-                        'type': 'quote',
-                        'content': quote_text,
-                        'style': element_style,
-                        'tag': tag_name,
-                        'element_id': id(element)
-                    })
-
-            elif tag_name == 'pre':
-                code_text = element.get_text().strip()
-                if code_text:
-                    text_elements.append({
-                        'type': 'code',
-                        'content': code_text,
-                        'style': element_style,
-                        'tag': tag_name,
-                        'element_id': id(element)
-                    })
-
-            elif tag_name in ['div', 'section', 'article']:
-                # 检查div是否有特殊的类或ID来确定布局角色
-                class_list = element.get('class', [])
-                element_id = element.get('id', '')
-
-                # 检查是否包含有意义的直接文本内容
-                direct_text = self._get_direct_text_content(element)
-                has_block_children = any(child.name in [
-                    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol',
-                    'blockquote', 'pre', 'div'
-                ] for child in element.find_all(recursive=False)
-                                         if isinstance(child, Tag))
-
-                if direct_text and not has_block_children:
-                    # 如果有直接文本且没有块级子元素，作为文本块处理
-                    text_elements.append({
-                        'type': 'text_block',
-                        'content': direct_text,
-                        'style': element_style,
-                        'tag': tag_name,
-                        'element_id': id(element),
-                        'classes': class_list,
-                        'id_attr': element_id
-                    })
-                else:
-                    # 递归处理子元素
-                    for child in element.children:
-                        if isinstance(child, Tag):
-                            _extract_structured(child, element_style)
-
-            elif tag_name in ['span', 'strong', 'em', 'b', 'i']:
-                # 内联元素通常不单独成框，除非没有父级块元素
-                parent_tag = element.parent.name.lower(
-                ) if element.parent else ''
-                if parent_tag not in [
-                        'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li',
-                        'blockquote'
-                ]:
-                    full_text = element.get_text().strip()
-                    if full_text:
-                        text_elements.append({
-                            'type': 'inline_text',
-                            'content': full_text,
-                            'style': element_style,
-                            'tag': tag_name,
-                            'element_id': id(element)
-                        })
-            else:
-                # 其他元素递归处理
-                for child in element.children:
-                    if isinstance(child, Tag):
-                        _extract_structured(child, element_style)
-
-        # 开始提取
-        _extract_structured(container)
-
-        # 按DOM顺序排序（保持HTML中的原始顺序）
-        return text_elements
-
-    def _get_direct_text_content(self, element: Tag) -> str:
-        """获取元素的直接文本内容（不包括子元素的文本）"""
-        texts = []
-        for content in element.contents:
-            if isinstance(content, NavigableString):
-                text = str(content).strip()
-                if text:
-                    texts.append(text)
-        return ' '.join(texts)
-
-    def _set_textbox_background(self, textbox, style: Dict[str, str]) -> None:
-        """设置文本框背景色"""
-        bg_color = style.get('background-color') or style.get('background')
-        if bg_color:
-            # 清理复杂背景值
-            if 'linear-gradient' in bg_color or 'radial-gradient' in bg_color:
-                import re
-                hex_colors = re.findall(r'#[0-9a-fA-F]{6}', bg_color)
-                if hex_colors:
-                    bg_color = hex_colors[0]
-                else:
-                    bg_color = '#f8f9fa'
-            elif 'url(' in bg_color:
-                bg_color = '#ffffff'
-            elif ' ' in bg_color:
-                parts = bg_color.split()
-                for part in parts:
-                    if part.startswith('#') or part.startswith('rgb'):
-                        bg_color = part
-                        break
-                else:
-                    bg_color = None
-
-            color = self._parse_color(bg_color)
-            if color:
-                fill = textbox.fill
-                fill.solid()
-                fill.fore_color.rgb = color
-                if self.config.DEBUG_MODE:
-                    print(f"        设置文本框背景: {bg_color} -> {color}")
-
-    def _set_textbox_border(self, textbox, style: Dict[str, str]) -> None:
-        """设置文本框边框"""
-        border = style.get('border', '')
-        border_color = style.get('border-color', '')
-        border_width = style.get('border-width', '0')
-        border_style = style.get('border-style', 'solid')
-
-        # 解析复合border属性
-        if border and not border_color and not border_width:
-            parts = border.split()
-            for part in parts:
-                if part.endswith('px') or part.endswith('pt'):
-                    border_width = part
-                elif part in ['solid', 'dashed', 'dotted', 'none']:
-                    border_style = part
-                elif part.startswith('#') or part.startswith('rgb'):
-                    border_color = part
-
-        width_pt = self._parse_length(border_width) if border_width else 0
-        if width_pt > 0 and border_style != 'none':
-            line = textbox.line
-            line.color.rgb = self._parse_color(border_color) or RGBColor(
-                200, 200, 200)
-            line.width = Pt(width_pt)
-            if self.config.DEBUG_MODE:
-                print(
-                    f"        设置边框: {border_width} {border_style} {border_color}"
-                )
-        else:
-            # 设置为无边框
-            textbox.line.fill.background()
-
-    def _set_shape_background(self, shape, style: Dict[str, str]) -> None:
-        """设置形状背景色"""
-        if not self.config.PRESERVE_BACKGROUND:
-            return
-
-        # 获取背景色
-        bg_color = style.get('background-color') or style.get('background')
-
-        if bg_color:
-            # 清理背景值
-            if 'linear-gradient' in bg_color or 'radial-gradient' in bg_color:
-                # 从渐变中提取主色调
-                if '#' in bg_color:
-                    hex_colors = re.findall(r'#[0-9a-fA-F]{6}', bg_color)
-                    if hex_colors:
-                        bg_color = hex_colors[0]
-                    else:
-                        bg_color = '#f8f9fa'
-                else:
-                    bg_color = '#f8f9fa'
-
-            elif 'url(' in bg_color:
-                bg_color = '#ffffff'  # 图片背景用白色代替
-
-            # 如果background属性包含多个值，提取颜色部分
-            if bg_color and ' ' in bg_color:
-                parts = bg_color.split()
-                for part in parts:
-                    if (part.startswith('#') or part.startswith('rgb')
-                            or part in [
-                                'white', 'black', 'red', 'green', 'blue',
-                                'gray', 'grey'
-                            ]):
-                        bg_color = part
-                        break
-                else:
-                    bg_color = None
-
-            color = self._parse_color(bg_color)
-            if color:
-                fill = shape.fill
-                fill.solid()
-                fill.fore_color.rgb = color
-
-                if self.config.DEBUG_MODE:
-                    print(f"        设置文本框背景色: {bg_color} -> {color}")
-        else:
-            # 没有背景色时设为透明
-            shape.fill.background()
-
-    def _set_shape_border(self, shape, style: Dict[str, str]) -> None:
-        """设置形状边框"""
-        border_style = style.get('border') or style.get('border-style', '')
-        border_color = style.get('border-color', '')
-        border_width = style.get('border-width', '0')
-
-        # 解析复合border属性 (如: "1px solid #ccc")
-        if border_style and not border_color and not border_width:
-            parts = border_style.split()
-            for part in parts:
-                if part.endswith('px') or part.endswith('pt'):
-                    border_width = part
-                elif part in ['solid', 'dashed', 'dotted', 'none']:
-                    border_style = part
-                elif part.startswith('#') or part.startswith('rgb'):
-                    border_color = part
-
-        # 解析边框宽度
-        width_pt = self._parse_length(border_width) if border_width else 0
-
-        if width_pt > 0 and border_style not in ['none', 'hidden']:
-            line = shape.line
-            line.color.rgb = self._parse_color(border_color) or RGBColor(
-                200, 200, 200)
-            line.width = Pt(width_pt)
-
-            # 设置边框样式
-            if border_style == 'dashed':
-                line.dash_style = MSO_LINE_DASH_STYLE.DASH
-            elif border_style == 'dotted':
-                line.dash_style = MSO_LINE_DASH_STYLE.DOT
-            else:
-                line.dash_style = MSO_LINE_DASH_STYLE.SOLID
-
-            if self.config.DEBUG_MODE:
-                print(
-                    f"        设置边框: {border_width} {border_style} {border_color}"
-                )
-        else:
-            # 无边框
-            shape.line.fill.background()
-
-    def _get_element_style(
-            self, element: Tag,
-            styles: Dict[str, Dict[str, str]]) -> Dict[str, str]:
-        """获取元素样式"""
-        computed = {}
-        tag_name = element.name.lower()
-
-        # 标签样式
-        if tag_name in styles:
-            computed.update(styles[tag_name])
-
-        # 类样式
-        if element.has_attr('class'):
-            for class_name in element['class']:
-                selector = f'.{class_name}'
-                if selector in styles:
-                    computed.update(styles[selector])
-
-                combined_selector = f'{tag_name}.{class_name}'
-                if combined_selector in styles:
-                    computed.update(styles[combined_selector])
-
-        # ID样式
-        if element.has_attr('id'):
-            id_selector = f"#{element['id']}"
-            if id_selector in styles:
-                computed.update(styles[id_selector])
-
-        # 内联样式
-        if element.has_attr('style'):
-            inline_styles = {}
-            for rule in element['style'].split(';'):
-                if ':' in rule:
-                    prop, value = rule.split(':', 1)
-                    inline_styles[prop.strip()] = value.strip()
-            computed.update(inline_styles)
-
-        return computed
-
-    def _get_direct_text(self, element: Tag) -> str:
-        """获取元素的直接文本内容"""
-        texts = []
-        for child in element.children:
-            if isinstance(child, NavigableString):
-                text = str(child).strip()
-                if text:
-                    texts.append(text)
-        return ' '.join(texts)
-
-
-class PPTGenerator:
-    """PPT生成器"""
-
-    def __init__(self, config: ConversionConfig):
-        self.config = config
-        self.css_processor = CSSProcessor(config)
-        self.layout_analyzer = LayoutAnalyzer(config)
-        self.text_processor = TextProcessor(config)
-
-    def px_to_inches(self, px: Union[str, int, float]) -> float:
-        """像素转英寸"""
-        if isinstance(px, str):
-            px = self._parse_length(px)
-        return float(px) * self.config.PX_TO_INCHES
-
-    def _parse_length(self, value: str, base_size: float = 16) -> float:
-        """解析长度值"""
-        if isinstance(value, (int, float)):
-            return float(value)
-        if not isinstance(value, str):
-            return 0
-
-        value = value.strip().lower()
-        try:
-            if value.endswith('px'):
-                return float(value[:-2])
-            elif value.endswith('pt'):
-                return float(value[:-2]) * 4 / 3
-            elif value.endswith('rem'):
-                return float(value[:-3]) * base_size
-            elif value.endswith('em'):
-                return float(value[:-2]) * base_size
-            elif value.endswith('%'):
-                return float(value[:-1]) / 100 * base_size
-            else:
-                return float(value)
-        except:
-            return 0
-
-    def _parse_color(self, color_str: str) -> Optional[RGBColor]:
-        """解析颜色"""
+    @staticmethod
+    def parse_color(color_str: str) -> Optional[RGBColor]:
+        """解析颜色字符串
+        Args:
+            color_str (str): 颜色字符串，支持十六进制、RGB、命名颜色三种方式。
+        Returns:
+            Optional[RGBColor]: 解析后的RGBColor实例，如果无法解析则返回None。
+        """
         if not color_str:
             return None
 
         color_str = color_str.strip().lower()
 
-        # 十六进制
-        if color_str.startswith('#'):
-            hex_color = color_str.lstrip('#')
+        # 1. 如果颜色是按照十六进制的格式提供的
+        # - 6位十六进制 ： #RRGGBB ，如 #FF0000 （红色）
+        # - 3位十六进制 ： #RGB ，如 #F00 （等同于 #FF0000 ）
+        # - 8位十六进制 ： #RRGGBBAA ，包含透明度，如 #FF0000FF，暂不支持
+        if color_str.startswith("#"):
+            hex_color = color_str[1:]  # 把#去掉
+            # 处理三位颜色
             if len(hex_color) == 3:
-                hex_color = ''.join([c * 2 for c in hex_color])
+                hex_color = "".join([c * 2 for c in hex_color])
+            # 处理六位颜色
             if len(hex_color) == 6:
                 try:
-                    r, g, b = tuple(
-                        int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+                    # int的第2个参数表明进制
+                    r = int(hex_color[0:2], 16)
+                    g = int(hex_color[2:4], 16)
+                    b = int(hex_color[4:6], 16)
                     return RGBColor(r, g, b)
-                except:
-                    return None
+                except ValueError:
+                    pass
 
-        # RGB
-        elif color_str.startswith('rgb'):
-            nums = re.findall(r'\d+', color_str)
-            if len(nums) >= 3:
-                try:
-                    return RGBColor(int(nums[0]), int(nums[1]), int(nums[2]))
-                except:
-                    return None
+        # 2. 如果颜色是按照rgb(r,g,b)的格式提供的
+        # 使用正则表达式匹配RGB格式的颜色字符串
+        # 匹配的格式为: rgb(r,g,b), 其中r,g,b为0-255的整数
+        # \s* 表示匹配0个或多个空白字符
+        # (\d+) 表示匹配1个或多个数字,并捕获到组中
+        rgb_match = re.match(
+            r"rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color_str
+        )
 
-        # 颜色名扩展映射
+        # 如果匹配成功
+        if rgb_match:
+            # 使用map将匹配到的字符串转为整数
+            # groups()返回所有捕获组的元组
+            r, g, b = map(int, rgb_match.groups())
+            # 返回RGBColor对象
+            return RGBColor(r, g, b)
+
+        # 3. 如果颜色是按照命名颜色的格式提供的
         color_map = {
-            'black': RGBColor(0, 0, 0),
-            'white': RGBColor(255, 255, 255),
-            'red': RGBColor(255, 0, 0),
-            'green': RGBColor(0, 128, 0),
-            'blue': RGBColor(0, 0, 255),
-            'gray': RGBColor(128, 128, 128),
-            'grey': RGBColor(128, 128, 128),
-            'silver': RGBColor(192, 192, 192),
-            'maroon': RGBColor(128, 0, 0),
-            'yellow': RGBColor(255, 255, 0),
-            'lime': RGBColor(0, 255, 0),
-            'aqua': RGBColor(0, 255, 255),
-            'teal': RGBColor(0, 128, 128),
-            'navy': RGBColor(0, 0, 128),
-            'fuchsia': RGBColor(255, 0, 255),
-            'purple': RGBColor(128, 0, 128),
-            'orange': RGBColor(255, 165, 0),
-            'pink': RGBColor(255, 192, 203),
-            'transparent': None,
-            # 常见CSS预设颜色
-            '#2c3e50': RGBColor(44, 62, 80),
-            '#7f8c8d': RGBColor(127, 140, 141),
-            '#34495e': RGBColor(52, 73, 94),
-            '#f8f9fa': RGBColor(248, 249, 250),
-            '#667eea': RGBColor(102, 126, 234),
-            '#764ba2': RGBColor(118, 75, 162),
+            "black": RGBColor(0, 0, 0),
+            "white": RGBColor(255, 255, 255),
+            "red": RGBColor(255, 0, 0),
+            "green": RGBColor(0, 128, 0),
+            "blue": RGBColor(0, 0, 255),
+            "gray": RGBColor(128, 128, 128),
+            "grey": RGBColor(128, 128, 128),
         }
+
         return color_map.get(color_str)
 
-    def create_text_shape(self,
-                          slide,
-                          text: str,
-                          style: Dict[str, str],
-                          bounds: Tuple[float, float, float, float],
-                          tag: str = 'p') -> Any:
-        """创建具有完整样式的文本形状"""
-        left, top, width, height = bounds
 
-        # 创建文本框
-        textbox = slide.shapes.add_textbox(Inches(left), Inches(top),
-                                           Inches(width), Inches(height))
+class BackgroundHelper:
+    """背景处理助手
 
-        # 设置文本框背景色
-        bg_color = style.get('background-color') or style.get('background')
-        if bg_color and self.config.PRESERVE_BACKGROUND:
-            # 清理复杂背景值
-            if 'linear-gradient' in bg_color or 'radial-gradient' in bg_color:
-                import re
-                hex_colors = re.findall(r'#[0-9a-fA-F]{6}', bg_color)
-                if hex_colors:
-                    bg_color = hex_colors[0]
-                else:
-                    bg_color = '#f8f9fa'
-            elif 'url(' in bg_color:
-                bg_color = '#ffffff'
-            elif ' ' in bg_color:
-                parts = bg_color.split()
-                for part in parts:
-                    if part.startswith('#') or part.startswith('rgb'):
-                        bg_color = part
-                        break
-                else:
-                    bg_color = None
+    Attributes:
+        config (SlideConfig): 幻灯片配置对象，包含幻灯片的相关配置信息。
+    """
 
-            if bg_color:
-                color = self._parse_color(bg_color)
-                if color:
-                    fill = textbox.fill
-                    fill.solid()
-                    fill.fore_color.rgb = color
-                    if self.config.DEBUG_MODE:
-                        print(f"        设置文本框背景: {bg_color} -> {color}")
+    def __init__(self, config: SlideConfig):
+        self.config = config
+        # 背景处理助手
+        self.color_helper = ColorHelper()
 
-        # 设置文本框边框
-        border = style.get('border', '')
-        if border and self.config.PRESERVE_BACKGROUND:
-            # 解析border属性 (如: "1px solid #ccc")
-            parts = border.split()
-            border_width = '0'
-            border_style = 'solid'
-            border_color = '#cccccc'
+    def create_background_image(self, background_style: str) -> Optional[str]:
+        """创建背景图片
 
-            for part in parts:
-                if part.endswith('px') or part.endswith('pt'):
-                    border_width = part
-                elif part in ['solid', 'dashed', 'dotted', 'none']:
-                    border_style = part
-                elif part.startswith('#') or part.startswith('rgb'):
-                    border_color = part
+        Args:
+            background_style (str): 背景样式字符串，支持渐变、纯色、图片等。
+        Returns:
+            Optional[str]: 背景图片的路径，如果无法创建则返回None。
+        """
+        if not background_style:
+            return None
 
-            width_pt = self._parse_length(border_width) if border_width else 0
-            if width_pt > 0 and border_style != 'none':
-                line = textbox.line
-                line.color.rgb = self._parse_color(border_color) or RGBColor(
-                    200, 200, 200)
-                line.width = Pt(width_pt)
-                if self.config.DEBUG_MODE:
-                    print(
-                        f"        设置边框: {border_width} {border_style} {border_color}"
-                    )
-            else:
-                # 设置为无边框
-                textbox.line.fill.background()
+        # 处理渐变背景
+        if "gradient" in background_style.lower():
+            return self._create_gradient_background(background_style)
 
-        text_frame = textbox.text_frame
-        text_frame.clear()
-        text_frame.word_wrap = True
-        text_frame.auto_size = MSO_AUTO_SIZE.NONE if not self.config.AUTO_FIT_TEXT else MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-
-        # 设置内边距
-        margin = self._parse_length(style.get('padding', '4'))
-        text_frame.margin_left = Inches(margin / 72)  # 转换为英寸
-        text_frame.margin_right = Inches(margin / 72)
-        text_frame.margin_top = Inches(margin / 72)
-        text_frame.margin_bottom = Inches(margin / 72)
-
-        # 设置垂直对齐
-        vertical_align = style.get('vertical-align', 'middle')
-        if vertical_align == 'top':
-            text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
-        elif vertical_align == 'bottom':
-            text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.BOTTOM
-        else:
-            text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.MIDDLE
-
-        # 设置段落
-        paragraph = text_frame.paragraphs[0]
-        paragraph.text = text
-
-        # 文本对齐
-        text_align = style.get('text-align', 'left')
-        align_map = {
-            'left': PP_PARAGRAPH_ALIGNMENT.LEFT,
-            'center': PP_PARAGRAPH_ALIGNMENT.CENTER,
-            'right': PP_PARAGRAPH_ALIGNMENT.RIGHT,
-            'justify': PP_PARAGRAPH_ALIGNMENT.JUSTIFY
-        }
-        paragraph.alignment = align_map.get(text_align,
-                                            PP_PARAGRAPH_ALIGNMENT.LEFT)
-
-        # 字体设置
-        run = paragraph.runs[0]
-
-        # 字体大小
-        font_size = self._parse_length(
-            style.get('font-size', str(self.config.DEFAULT_FONT_SIZE)))
-        run.font.size = Pt(font_size)
-
-        # 字体族
-        font_family = style.get('font-family', self.config.DEFAULT_FONT_FAMILY)
-        if ',' in font_family:
-            font_family = font_family.split(',')[0]
-        font_family = font_family.strip('\'"')
-        run.font.name = font_family
-
-        # 字体颜色
-        color = self._parse_color(
-            style.get('color', self.config.DEFAULT_TEXT_COLOR))
+        # 处理纯色背景
+        color = ColorHelper.parse_color(background_style)
         if color:
-            run.font.color.rgb = color
+            return self._create_solid_background(color)
 
-        # 字体样式
-        font_weight = style.get('font-weight', 'normal')
-        run.font.bold = font_weight in ['bold', 'bolder', '700', '800', '900']
+        return None
 
-        font_style = style.get('font-style', 'normal')
-        run.font.italic = font_style == 'italic'
+    def _parse_background(self, style_dict: dict) -> Optional[str]:
+        """解析背景样式"""
+        background = style_dict.get("background", "")
+        background_color = style_dict.get("background-color", "")
 
-        # 行间距
-        line_height = style.get('line-height',
-                                str(self.config.DEFAULT_LINE_HEIGHT))
-        try:
-            if line_height.replace('.', '').isdigit():
-                paragraph.line_spacing = float(line_height)
-        except:
-            pass
+        # 处理渐变背景
+        if "linear-gradient" in background:
+            return self._create_gradient_background(background)
 
-        return textbox
-
-    def create_list_shape(self,
-                          slide,
-                          items: List[Dict[str, Any]],
-                          style: Dict[str, str],
-                          bounds: Tuple[float, float, float, float],
-                          list_type: str = 'ul') -> Any:
-        """创建列表形状"""
-        left, top, width, height = bounds
-
-        textbox = slide.shapes.add_textbox(Inches(left), Inches(top),
-                                           Inches(width), Inches(height))
-
-        text_frame = textbox.text_frame
-        text_frame.clear()
-        text_frame.word_wrap = True
-        text_frame.auto_size = MSO_AUTO_SIZE.NONE
-        text_frame.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
-
-        for i, item in enumerate(items):
-            paragraph = text_frame.add_paragraph(
-            ) if i > 0 else text_frame.paragraphs[0]
-
-            # 列表符号
-            if list_type == 'ul':
-                bullet = '• '
-            else:
-                bullet = f'{i+1}. '
-
-            paragraph.text = bullet + item['content']
-
-            # 设置样式
-            run = paragraph.runs[0]
-            item_style = item.get('style', style)
-
-            font_size = self._parse_length(
-                item_style.get('font-size',
-                               str(self.config.DEFAULT_FONT_SIZE)))
-            run.font.size = Pt(font_size)
-
-            font_family = item_style.get('font-family',
-                                         self.config.DEFAULT_FONT_FAMILY)
-            if ',' in font_family:
-                font_family = font_family.split(',')[0]
-            run.font.name = font_family.strip('\'"')
-
-            color = self._parse_color(
-                item_style.get('color', self.config.DEFAULT_TEXT_COLOR))
+        # 处理纯色背景
+        if background_color and background_color != "transparent":
+            color = self.color_helper.parse_color(background_color)
             if color:
-                run.font.color.rgb = color
+                return self._create_solid_background(color)
 
-            paragraph.space_after = Pt(6)
+        # 处理background简写属性中的颜色
+        if (
+            background
+            and not background.startswith("url")
+            and "gradient" not in background
+        ):
+            # 提取颜色值（可能包含其他属性）
+            color_match = re.search(
+                r"#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|rgba\([^)]+\)|[a-zA-Z]+", background
+            )
+            if color_match:
+                color_value = color_match.group()
+                color = self.color_helper.parse_color(color_value)
+                if color:
+                    return self._create_solid_background(color)
 
-        return textbox
+        return None
 
-    def set_slide_background(self, slide, style: Dict[str, str]) -> None:
-        """设置幻灯片背景"""
-        if not self.config.PRESERVE_BACKGROUND:
-            return
+    def _create_gradient_background(self, gradient_str: str) -> Optional[str]:
+        """创建渐变背景"""
+        try:
+            # 解析linear-gradient，支持更多格式
+            # 匹配颜色值：十六进制、rgb、rgba、颜色名称
+            color_pattern = r"#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|rgba\([^)]+\)|\b(?:red|blue|green|white|black|gray|grey|yellow|orange|purple|pink|brown|cyan|magenta)\b"
+            colors = re.findall(color_pattern, gradient_str, re.IGNORECASE)
 
-        # 优先使用background-color，然后是background
-        bg_color = style.get('background-color') or style.get('background')
-
-        if not bg_color:
-            bg_color = self.config.DEFAULT_BACKGROUND_COLOR
-
-        # 智能处理复杂背景值
-        if 'linear-gradient' in bg_color or 'radial-gradient' in bg_color:
-            # 从渐变中提取主色调
-            import re
-            hex_colors = re.findall(r'#[0-9a-fA-F]{6}', bg_color)
-            if hex_colors:
-                bg_color = hex_colors[0]  # 使用第一个颜色
+            if len(colors) >= 2:
+                start_color = self.color_helper.parse_color(colors[0])
+                end_color = self.color_helper.parse_color(colors[-1])
             else:
-                # 尝试提取rgb颜色
-                rgb_match = re.search(
-                    r'rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)', bg_color)
-                if rgb_match:
-                    r, g, b = rgb_match.groups()
-                    bg_color = f'rgb({r}, {g}, {b})'
+                # 如果没有找到足够的颜色，使用默认渐变
+                start_color = self.color_helper.parse_color("#667eea")
+                end_color = self.color_helper.parse_color("#764ba2")
+
+            if not start_color or not end_color:
+                return None
+
+            # 创建渐变图片
+            img = Image.new("RGB", (self.config.width_px, self.config.height_px))
+            draw = ImageDraw.Draw(img)
+
+            # 解析起始和结束颜色的RGB值
+            start_str = str(start_color)
+            end_str = str(end_color)
+
+            if len(start_str) == 6 and len(end_str) == 6:
+                start_r = int(start_str[0:2], 16)
+                start_g = int(start_str[2:4], 16)
+                start_b = int(start_str[4:6], 16)
+
+                end_r = int(end_str[0:2], 16)
+                end_g = int(end_str[2:4], 16)
+                end_b = int(end_str[4:6], 16)
+
+                # 检查渐变方向
+                if "135deg" in gradient_str or "to bottom right" in gradient_str:
+                    # 对角线渐变
+                    for y in range(self.config.height_px):
+                        for x in range(self.config.width_px):
+                            ratio = (x + y) / (
+                                self.config.width_px + self.config.height_px
+                            )
+                            r = int(start_r * (1 - ratio) + end_r * ratio)
+                            g = int(start_g * (1 - ratio) + end_g * ratio)
+                            b = int(start_b * (1 - ratio) + end_b * ratio)
+                            draw.point((x, y), fill=(r, g, b))
                 else:
-                    bg_color = '#f8f9fa'  # 默认浅灰色
+                    # 垂直渐变（默认）
+                    for y in range(self.config.height_px):
+                        ratio = y / self.config.height_px
+                        r = int(start_r * (1 - ratio) + end_r * ratio)
+                        g = int(start_g * (1 - ratio) + end_g * ratio)
+                        b = int(start_b * (1 - ratio) + end_b * ratio)
+                        draw.line([(0, y), (self.config.width_px, y)], fill=(r, g, b))
 
-        elif 'url(' in bg_color:
-            bg_color = '#ffffff'  # 图片背景用白色代替
+            # 保存图片
+            bg_filename = f"gradient_bg_{abs(hash(gradient_str)) % 10000}.png"
+            img.save(bg_filename, "PNG")
+            return bg_filename
 
-        # 如果background属性包含多个值，智能提取颜色部分
-        if bg_color and ' ' in bg_color:
-            parts = bg_color.split()
-            for part in parts:
-                if (part.startswith('#') or part.startswith('rgb') or part in [
-                        'white', 'black', 'red', 'green', 'blue', 'gray',
-                        'grey', 'lightblue', 'lightgray', 'darkgray',
-                        'lightgreen', 'yellow', 'orange', 'purple', 'pink',
-                        'brown', 'navy', 'teal'
-                ]):
-                    bg_color = part
-                    break
+        except Exception as e:
+            print(f"创建渐变背景失败: {e}")
+            return None
+
+    def _create_solid_background(self, color: RGBColor) -> Optional[str]:
+        """创建纯色背景"""
+        try:
+            # RGBColor对象实际上是一个字符串形式的十六进制颜色值
+            color_str = str(color)
+            if len(color_str) == 6:  # RRGGBB格式
+                r = int(color_str[0:2], 16)
+                g = int(color_str[2:4], 16)
+                b = int(color_str[4:6], 16)
             else:
-                bg_color = '#ffffff'  # 默认白色
+                # 默认白色背景
+                r, g, b = 255, 255, 255
 
-        # 解析并应用颜色
-        color = self._parse_color(bg_color)
-        if color:
-            background = slide.background
-            fill = background.fill
-            fill.solid()
-            fill.fore_color.rgb = color
-            if self.config.DEBUG_MODE:
-                print(f"      设置幻灯片背景色: {bg_color} -> {color}")
-        else:
-            # 如果无法解析颜色，使用默认白色
-            background = slide.background
-            fill = background.fill
-            fill.solid()
-            fill.fore_color.rgb = RGBColor(255, 255, 255)
-            if self.config.DEBUG_MODE:
-                print(f"      使用默认白色背景")
+            img = Image.new(
+                "RGB", (self.config.width_px, self.config.height_px), (r, g, b)
+            )
 
-    def calculate_layout_bounds(
-            self, slide_style: Dict[str, str],
-            layout_info: Dict[str, Any]) -> Tuple[float, float, float, float]:
-        """计算布局边界"""
-        # 解析padding
-        padding = slide_style.get('padding', str(self.config.DEFAULT_PADDING))
-        padding_parts = padding.split()
+            bg_filename = f"solid_bg_{r}_{g}_{b}.png"
+            img.save(bg_filename, "PNG")
+            return bg_filename
 
-        if len(padding_parts) == 1:
-            p_top = p_right = p_bottom = p_left = self.px_to_inches(
-                self._parse_length(padding_parts[0]))
-        elif len(padding_parts) == 2:
-            p_top = p_bottom = self.px_to_inches(
-                self._parse_length(padding_parts[0]))
-            p_left = p_right = self.px_to_inches(
-                self._parse_length(padding_parts[1]))
-        elif len(padding_parts) == 4:
-            p_top = self.px_to_inches(self._parse_length(padding_parts[0]))
-            p_right = self.px_to_inches(self._parse_length(padding_parts[1]))
-            p_bottom = self.px_to_inches(self._parse_length(padding_parts[2]))
-            p_left = self.px_to_inches(self._parse_length(padding_parts[3]))
-        else:
-            p_top = p_right = p_bottom = p_left = self.px_to_inches(
-                self.config.DEFAULT_PADDING)
+        except Exception as e:
+            print(f"创建纯色背景失败: {e}")
+            return None
 
-        left = p_left
-        top = p_top
-        width = self.config.SLIDE_WIDTH_INCHES - p_left - p_right
-        height = self.config.SLIDE_HEIGHT_INCHES - p_top - p_bottom
 
-        return (left, top, width, height)
+class HTML2PPTXConverter:
+    """HTML转PPT转换器"""
 
-    def convert(self, html_content: str, output_file: str) -> str:
-        """主转换方法"""
-        if self.config.DEBUG_MODE:
-            print("开始HTML转PPT转换...")
+    def __init__(self, config: SlideConfig = None):
+        self.config = config or SlideConfig()
+        self.background_helper = BackgroundHelper(self.config)
+        self.temp_files = []
+
+    def convert(
+        self, html_file: str, css_file: str = None, output_file: str = None
+    ) -> str:
+        """转换HTML文件为PPT"""
+        print(f"开始转换: {html_file}")
+
+        # 读取HTML文件
+        with open(html_file, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
+        # 读取CSS文件
+        css_styles = {}
+        if css_file and os.path.exists(css_file):
+            print(f"加载CSS文件: {css_file}")
+            css_styles = self._parse_css_file(css_file)
 
         # 解析HTML
         soup = BeautifulSoup(html_content, "html.parser")
 
-        # 解析CSS
-        all_styles = {}
-
-        # 内联样式
-        for style_tag in soup.find_all('style'):
-            css_content = style_tag.string or style_tag.get_text()
-            if css_content:
-                styles = self.css_processor.parse_css_file(css_content)
-                all_styles.update(styles)
-
-        # 外部CSS文件
-        for link_tag in soup.find_all('link', rel='stylesheet'):
-            href = link_tag.get('href')
-            if href and os.path.exists(href):
-                try:
-                    with open(href, 'r', encoding='utf-8') as f:
-                        css_content = f.read()
-                        styles = self.css_processor.parse_css_file(css_content)
-                        all_styles.update(styles)
-                except Exception as e:
-                    if self.config.DEBUG_MODE:
-                        print(f"加载CSS文件失败 {href}: {e}")
-
-        if self.config.DEBUG_MODE:
-            print(f"解析到 {len(all_styles)} 个CSS规则")
-
-        # 找到幻灯片容器
-        slide_containers = soup.select('.slide-container')
-        if not slide_containers:
-            raise ValueError("未找到 .slide-container 元素")
-
-        print(f"找到 {len(slide_containers)} 个幻灯片")
-
         # 创建PPT
         prs = Presentation()
-        prs.slide_width = Inches(self.config.SLIDE_WIDTH_INCHES)
-        prs.slide_height = Inches(self.config.SLIDE_HEIGHT_INCHES)
+        prs.slide_width = Inches(self.config.width_inches)
+        prs.slide_height = Inches(self.config.height_inches)
 
-        # 处理每个幻灯片
+        # 查找幻灯片容器
+        slide_containers: List[Tag] = soup.find_all("div", class_="slide-container")
+        print(f"找到 {len(slide_containers)} 个幻灯片容器")
+
+        if not slide_containers:
+            # 如果没有找到slide-container，将整个body作为一个幻灯片
+            body = soup.find("body")
+            if body:
+                slide_containers = [body]
+                print("使用body作为幻灯片容器")
+
+        # 处理每个幻灯片，每个container都是一张幻灯片
+        # 一页一页生成
         for i, container in enumerate(slide_containers):
-            if self.config.DEBUG_MODE:
-                print(f"\n处理幻灯片 {i+1}/{len(slide_containers)}")
-
-            self._process_slide(prs, container, all_styles, i + 1)
+            print(f"处理第 {i+1} 个幻灯片")
+            self._create_slide(prs, container, css_styles)
 
         # 保存PPT
+        if not output_file:  # 如果没有指定输出文件名
+            import time  # 导入time模块，根据当前时间生成文件名
+
+            base_name = os.path.splitext(html_file)[0]
+            timestamp = int(time.time())
+            output_file = f"{base_name}_fixed_{timestamp}.pptx"
+
         prs.save(output_file)
-        print(f"PPT已保存: {output_file}")
+        print(f"转换完成: {output_file}")
+
+        # 清理临时文件
+        self._cleanup_temp_files()
+
+        # 清理临时文件
+        self._cleanup_temp_files()
 
         return output_file
 
-    def _process_slide(self, prs: Presentation, container: Tag,
-                       all_styles: Dict[str, Dict[str, str]], slide_num: int):
-        """处理单个幻灯片"""
-        # 创建幻灯片
-        slide_layout = prs.slide_layouts[6]  # 空白布局
-        slide = prs.slides.add_slide(slide_layout)
+    def _parse_css_file(self, css_file: str) -> Dict[str, Dict[str, str]]:
+        """解析CSS文件
 
-        # 获取容器样式
-        container_style = self.css_processor.compute_element_style(
-            container, all_styles)
+        Args:
+            css_file (str): CSS文件路径
 
-        # 设置背景
-        self.set_slide_background(slide, container_style)
-
-        # 分析布局
-        layout_info = self.layout_analyzer.analyze_slide_layout(
-            container, all_styles)
-
-        # 计算内容区域
-        content_bounds = self.calculate_layout_bounds(container_style,
-                                                      layout_info)
-
-        # 提取所有文本元素
-        text_elements = self.text_processor.extract_all_text_elements(
-            container, all_styles)
-
-        if self.config.DEBUG_MODE:
-            print(f"  - 提取到 {len(text_elements)} 个文本元素")
-            print(f"  - 布局类型: {layout_info['type']}")
-
-        # 布局元素
-        self._layout_elements(slide, text_elements, content_bounds,
-                              layout_info)
-
-    def _layout_elements(self, slide, text_elements: List[Dict[str, Any]],
-                         content_bounds: Tuple[float, float, float, float],
-                         layout_info: Dict[str, Any]):
-        """智能布局元素 - 为每个元素创建独立文本框"""
-        content_left, content_top, content_width, content_height = content_bounds
-
-        # 根据布局类型采用不同策略
-        layout_type = layout_info.get('type', 'standard')
-
-        if layout_type == 'title_slide':
-            self._layout_title_slide(slide, text_elements, content_bounds)
-        elif layout_type == 'two_column':
-            self._layout_two_column(slide, text_elements, content_bounds)
-        elif layout_type == 'multi_column':
-            self._layout_multi_column(slide, text_elements, content_bounds)
-        else:
-            self._layout_standard(slide, text_elements, content_bounds)
-
-    def _layout_standard(self, slide, text_elements: List[Dict[str, Any]],
-                         content_bounds: Tuple[float, float, float, float]):
-        """标准布局 - 垂直排列，确保元素间距合理"""
-        content_left, content_top, content_width, content_height = content_bounds
-        current_y = content_top
-
-        for i, element in enumerate(text_elements):
-            if self.config.DEBUG_MODE:
-                content_preview = str(element['content'])[:50] + "..." if len(
-                    str(element['content'])) > 50 else str(element['content'])
-                print(
-                    f"    [{i+1}] {element['type']}({element.get('tag', 'unknown')}): {content_preview}"
-                )
-
-            # 计算元素的精确位置和尺寸
-            element_layout = self._calculate_element_layout(
-                element, content_bounds, current_y)
-
-            # 确保不超出边界
-            if element_layout['top'] + element_layout[
-                    'height'] > content_top + content_height:
-                remaining_height = content_top + content_height - element_layout[
-                    'top']
-                if remaining_height < self.config.MIN_ELEMENT_HEIGHT:
-                    if self.config.DEBUG_MODE:
-                        print(f"      跳过：超出边界")
-                    break
-                element_layout['height'] = remaining_height
-
-            # 创建独立文本框
-            bounds = (element_layout['left'], element_layout['top'],
-                      element_layout['width'], element_layout['height'])
-
-            try:
-                self._create_element_textbox(slide, element, bounds, i + 1)
-
-                # 更新Y坐标，增加更大的间距避免堆叠
-                element_spacing = self._get_enhanced_element_spacing(
-                    element['type'], element.get('tag', ''))
-                current_y = element_layout['top'] + element_layout[
-                    'height'] + element_layout[
-                        'margin_bottom'] + element_spacing
-
-            except Exception as e:
-                if self.config.DEBUG_MODE:
-                    print(f"      错误: {e}")
-                    import traceback
-                    traceback.print_exc()
-                continue
-
-    def _get_enhanced_element_spacing(self, element_type: str,
-                                      tag: str) -> float:
-        """获取增强的元素间距，避免堆叠"""
-        base_spacing = self.px_to_inches(12)  # 基础间距
-
-        # 根据元素类型调整间距
-        if element_type == 'heading' or tag in [
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
-        ]:
-            if tag == 'h1':
-                return self.px_to_inches(24)  # 大标题后更大间距
-            elif tag == 'h2':
-                return self.px_to_inches(20)
-            else:
-                return self.px_to_inches(16)
-        elif element_type == 'list':
-            return self.px_to_inches(18)  # 列表后稍大间距
-        elif element_type == 'code':
-            return self.px_to_inches(20)  # 代码块后较大间距
-        elif element_type == 'quote':
-            return self.px_to_inches(16)  # 引用后中等间距
-        elif element_type in ['paragraph', 'text_block']:
-            return self.px_to_inches(14)  # 段落间中等间距
-        else:
-            return base_spacing
-
-    def _calculate_element_layout(self, element: Dict[str, Any],
-                                  content_bounds: Tuple[float, float, float,
-                                                        float],
-                                  current_y: float) -> Dict[str, float]:
-        """精确计算元素布局"""
-        content_left, content_top, content_width, content_height = content_bounds
-        style = element.get('style', {})
-        element_type = element.get('type', 'text')
-        tag = element.get('tag', 'div')
-
-        # 解析margin - 更精确的处理
-        margin_top = self._parse_css_spacing(style.get('margin-top', '0'))
-        margin_bottom = self._parse_css_spacing(style.get(
-            'margin-bottom', '0'))
-        margin_left = self._parse_css_spacing(style.get('margin-left', '0'))
-        margin_right = self._parse_css_spacing(style.get('margin-right', '0'))
-
-        # 如果有margin属性，解析它
-        if 'margin' in style and not any(
-            [margin_top, margin_bottom, margin_left, margin_right]):
-            margin_values = self._parse_margin_shorthand(style['margin'])
-            margin_top = margin_values['top']
-            margin_bottom = margin_values['bottom']
-            margin_left = margin_values['left']
-            margin_right = margin_values['right']
-
-        # 解析padding
-        padding = self._parse_css_spacing(style.get('padding', '4'))
-
-        # 计算基础高度
-        base_height = self._calculate_element_height(element)
-
-        # 根据元素类型和样式精确计算宽度和位置
-        available_width = content_width - margin_left - margin_right
-        element_left = content_left + margin_left
-
-        # 根据元素类型进行特殊调整
-        if element_type == 'heading' or tag in [
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
-        ]:
-            # 标题元素占全宽
-            element_width = available_width
-
-        elif element_type == 'list':
-            # 列表元素增加缩进
-            list_indent = self.px_to_inches(24)
-            element_width = available_width - list_indent
-            element_left += list_indent
-
-        elif element_type == 'code':
-            # 代码块通常有背景，需要一些边距
-            code_margin = self.px_to_inches(8)
-            element_width = available_width - code_margin * 2
-            element_left += code_margin
-
-        elif element_type == 'quote':
-            # 引用通常有左右缩进
-            quote_indent = self.px_to_inches(32)
-            element_width = available_width - quote_indent * 2
-            element_left += quote_indent
-
-        elif element_type in ['paragraph', 'text_block']:
-            # 段落和文本块
-            element_width = available_width
-
-            # 根据text-align调整
-            text_align = style.get('text-align', 'left')
-            if text_align == 'center':
-                # 居中文本可以稍微缩进
-                center_margin = self.px_to_inches(16)
-                element_width = available_width - center_margin * 2
-                element_left += center_margin
-            elif text_align == 'right':
-                # 右对齐文本
-                right_margin = self.px_to_inches(16)
-                element_width = available_width - right_margin
-
-        else:
-            # 其他元素
-            element_width = available_width
-
-        # 确保最小宽度
-        min_width = self.px_to_inches(100)
-        element_width = max(element_width, min_width)
-
-        # 确保不超出边界
-        if element_left + element_width > content_left + content_width:
-            element_width = content_left + content_width - element_left
-
-        return {
-            'left': element_left,
-            'top': current_y + margin_top,
-            'width': element_width,
-            'height': base_height,
-            'margin_bottom': margin_bottom,
-            'padding': padding
-        }
-
-    def _parse_css_spacing(self, value: str) -> float:
-        """解析CSS间距值（margin, padding等）"""
-        if not value or value == '0':
-            return 0.0
-
-        # 处理多个值的情况 (如: "10px 20px")
-        parts = value.split()
-        if parts:
-            first_value = parts[0]
-            return self.px_to_inches(self._parse_length(first_value))
-        return 0.0
-
-    def _parse_margin_shorthand(self, margin: str) -> Dict[str, float]:
-        """解析margin简写属性"""
-        parts = margin.split()
-        if len(parts) == 1:
-            # margin: 10px
-            value = self._parse_css_spacing(parts[0])
-            return {
-                'top': value,
-                'right': value,
-                'bottom': value,
-                'left': value
+        Returns:
+            Dict[str, Dict[str, str]]: 解析后的CSS样式字典，例如：
+            {
+                ".title-slide": {
+                    "background": "linear-gradient(135deg, #f8f9fa 0%, #ffffff 50%, #f0f8ff 100%)",
+                    "color": "#333333",
+                    "text-align": "center",
+                    "justify-content": "center",
+                    "align-items": "center",
+                    "border-top": "4px solid #2c5aa0",
+                    "border-bottom": "2px solid #2c5aa0",
+                    "position": "relative",
+                },
+                ".title-slide::after": {
+                    "content": "''",
+                    "position": "absolute",
+                    "bottom": "60px",
+                    "left": "50%",
+                    "transform": "translateX(-50%)",
+                    "width": "200px",
+                    "height": "2px",
+                    "background": "linear-gradient(90deg, transparent 0%, #2c5aa0 50%, transparent 100%)",
+                },
+                ……
             }
-        elif len(parts) == 2:
-            # margin: 10px 20px
-            vertical = self._parse_css_spacing(parts[0])
-            horizontal = self._parse_css_spacing(parts[1])
-            return {
-                'top': vertical,
-                'right': horizontal,
-                'bottom': vertical,
-                'left': horizontal
-            }
-        elif len(parts) == 4:
-            # margin: 10px 20px 30px 40px
-            return {
-                'top': self._parse_css_spacing(parts[0]),
-                'right': self._parse_css_spacing(parts[1]),
-                'bottom': self._parse_css_spacing(parts[2]),
-                'left': self._parse_css_spacing(parts[3])
-            }
-        else:
-            return {'top': 0.0, 'right': 0.0, 'bottom': 0.0, 'left': 0.0}
-
-    def _layout_title_slide(self, slide, text_elements: List[Dict[str, Any]],
-                            content_bounds: Tuple[float, float, float, float]):
-        """标题页布局 - 居中对齐，大标题突出"""
-        content_left, content_top, content_width, content_height = content_bounds
-
-        # 计算总内容高度
-        total_height = sum(
-            self._calculate_element_height(elem) for elem in text_elements)
-        total_spacing = len(text_elements) * self.px_to_inches(20)  # 标题页间距更大
-
-        # 垂直居中
-        start_y = content_top + (content_height - total_height -
-                                 total_spacing) / 2
-        current_y = max(start_y, content_top)
-
-        for i, element in enumerate(text_elements):
-            # 标题页元素都居中
-            element_width = content_width * 0.9
-            element_left = content_left + (content_width - element_width) / 2
-            element_height = self._calculate_element_height(element)
-
-            bounds = (element_left, current_y, element_width, element_height)
-
-            try:
-                self._create_element_textbox(slide, element, bounds, i + 1)
-                current_y += element_height + self.px_to_inches(20)
-
-            except Exception as e:
-                if self.config.DEBUG_MODE:
-                    print(f"      标题页元素错误: {e}")
-                continue
-
-    def _layout_two_column(self, slide, text_elements: List[Dict[str, Any]],
-                           content_bounds: Tuple[float, float, float, float]):
-        """两栏布局，增加间距避免堆叠"""
-        content_left, content_top, content_width, content_height = content_bounds
-
-        # 分割为两栏，增加栏间距
-        col_gap = self.px_to_inches(30)  # 增加栏间距
-        col_width = (content_width - col_gap) / 2
-        left_col_left = content_left
-        right_col_left = content_left + col_width + col_gap
-
-        left_y = content_top
-        right_y = content_top
-
-        # 标题通常占全宽
-        for i, element in enumerate(text_elements):
-            tag = element.get('tag', '')
-            element_type = element.get('type', '')
-
-            if tag in ['h1', 'h2'] and i == 0:  # 第一个标题占全宽
-                bounds = (content_left, left_y, content_width,
-                          self._calculate_element_height(element))
-                self._create_element_textbox(slide, element, bounds, i + 1)
-                # 增加标题后的间距
-                title_spacing = self._get_enhanced_element_spacing(
-                    element_type, tag)
-                left_y += bounds[3] + title_spacing
-                right_y = left_y
-            else:
-                # 交替放置在两栏
-                if i % 2 == 1:  # 左栏
-                    bounds = (left_col_left, left_y, col_width,
-                              self._calculate_element_height(element))
-                    self._create_element_textbox(slide, element, bounds, i + 1)
-                    # 增加元素间距
-                    element_spacing = self._get_enhanced_element_spacing(
-                        element_type, tag)
-                    left_y += bounds[3] + element_spacing
-                else:  # 右栏
-                    bounds = (right_col_left, right_y, col_width,
-                              self._calculate_element_height(element))
-                    self._create_element_textbox(slide, element, bounds, i + 1)
-                    # 增加元素间距
-                    element_spacing = self._get_enhanced_element_spacing(
-                        element_type, tag)
-                    right_y += bounds[3] + element_spacing
-
-    def _layout_multi_column(self, slide, text_elements: List[Dict[str, Any]],
-                             content_bounds: Tuple[float, float, float,
-                                                   float]):
-        """多栏布局，增加间距避免堆叠"""
-        content_left, content_top, content_width, content_height = content_bounds
-
-        # 根据元素数量决定栏数
-        num_elements = len(text_elements)
-        if num_elements <= 3:
-            num_cols = 2
-        elif num_elements <= 6:
-            num_cols = 3
-        else:
-            num_cols = 4
-
-        # 增加栏间距
-        col_gap = self.px_to_inches(24)
-        col_width = (content_width - col_gap * (num_cols - 1)) / num_cols
-        col_positions = []
-        col_y_positions = []
-
-        for i in range(num_cols):
-            col_x = content_left + i * (col_width + col_gap)
-            col_positions.append(col_x)
-            col_y_positions.append(content_top)
-
-        # 标题通常占全宽
-        element_index = 0
-        for i, element in enumerate(text_elements):
-            tag = element.get('tag', '')
-            element_type = element.get('type', '')
-
-            if tag in ['h1', 'h2'] and i == 0:  # 第一个标题占全宽
-                bounds = (content_left, content_top, content_width,
-                          self._calculate_element_height(element))
-                self._create_element_textbox(slide, element, bounds, i + 1)
-                # 更新所有栏的Y位置，增加标题后间距
-                title_spacing = self._get_enhanced_element_spacing(
-                    element_type, tag)
-                new_y = content_top + bounds[3] + title_spacing
-                col_y_positions = [new_y] * num_cols
-            else:
-                # 选择最短的栏
-                col_index = col_y_positions.index(min(col_y_positions))
-
-                bounds = (col_positions[col_index], col_y_positions[col_index],
-                          col_width, self._calculate_element_height(element))
-                self._create_element_textbox(slide, element, bounds, i + 1)
-                # 增加元素间距
-                element_spacing = self._get_enhanced_element_spacing(
-                    element_type, tag)
-                col_y_positions[col_index] += bounds[3] + element_spacing
-
-    def _create_element_textbox(self, slide, element: Dict[str, Any],
-                                bounds: Tuple[float, float, float,
-                                              float], element_num: int):
-        """为单个元素创建独立文本框"""
-        left, top, width, height = bounds
-        element_type = element['type']
-        tag = element.get('tag', 'div')
-
-        if self.config.DEBUG_MODE:
-            print(
-                f"      创建文本框[{element_num}]: {element_type}({tag}) at ({left:.2f}, {top:.2f}, {width:.2f}, {height:.2f})"
-            )
+        """
+        styles = {}
 
         try:
-            # 根据元素类型创建不同的文本框
-            if element_type == 'list':
-                self.create_list_shape(slide, element['content'],
-                                       element['style'], bounds,
-                                       element['list_type'])
+            with open(css_file, "r", encoding="utf-8") as f:
+                css_content = f.read()
 
-            elif element_type == 'quote':
-                content = f'"{element["content"]}"'
-                self.create_text_shape(slide, content, element['style'],
-                                       bounds, tag)
+            # 简单的CSS解析
+            # 移除注释
+            css_content = re.sub(r"/\*.*?\*/", "", css_content, flags=re.DOTALL)
 
-            elif element_type == 'code':
-                self.create_text_shape(slide, element['content'],
-                                       element['style'], bounds, tag)
+            # 解析规则:
+            # 1. ([^{}]+) - 匹配选择器部分
+            #   - [^{}]+ 表示匹配除了{}以外的任意字符一次或多次
+            #   - () 表示捕获这个分组
+            # 2. \{ - 匹配左花括号
+            # 3. ([^{}]+) - 匹配CSS属性部分
+            #   - 同样使用[^{}]+匹配除了{}以外的所有字符
+            # 4. \} - 匹配右花括号
+            rules = re.findall(r"([^{}]+)\{([^{}]+)\}", css_content)
 
-            elif element_type == 'heading':
-                # 标题元素 - 应用标题样式
-                self.create_text_shape(slide, element['content'],
-                                       element['style'], bounds, tag)
+            for selector, properties in rules:
+                selector = selector.strip()
+                props = {}
 
-            elif element_type == 'paragraph':
-                # 段落元素 - 应用段落样式
-                self.create_text_shape(slide, element['content'],
-                                       element['style'], bounds, tag)
+                for prop in properties.split(";"):
+                    if ":" in prop:
+                        key, value = prop.split(":", 1)  # 第二个参数为1，确保只分割一次
+                        props[key.strip()] = value.strip()
 
-            elif element_type == 'text_block':
-                # 文本块（通常是div中的内容）
-                self.create_text_shape(slide, element['content'],
-                                       element['style'], bounds, tag)
-
-            elif element_type == 'inline_text':
-                # 内联文本元素
-                self.create_text_shape(slide, element['content'],
-                                       element['style'], bounds, tag)
-            else:
-                # 默认处理
-                self.create_text_shape(slide, str(element['content']),
-                                       element['style'], bounds, tag)
-
-            if self.config.DEBUG_MODE:
-                print(f"        ✓ 成功创建 {element_type} 文本框")
+                if props:
+                    styles[selector] = props
 
         except Exception as e:
-            if self.config.DEBUG_MODE:
-                print(f"        ✗ 创建文本框失败: {e}")
-                import traceback
-                traceback.print_exc()
-            # 不抛出异常，继续处理其他元素
-            pass
+            print(f"CSS解析错误: {e}")
 
-    def _calculate_element_height(self, element: Dict[str, Any]) -> float:
-        """智能计算元素高度，确保有足够空间避免堆叠"""
-        element_type = element.get('type', 'text')
-        tag = element.get('tag', 'p')
-        content = str(element.get('content', ''))
+        return styles
 
-        # 根据元素类型和标签计算基础高度，增加更多空间
-        if element_type == 'heading' or tag in [
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
-        ]:
-            if tag == 'h1':
-                base_height = self.px_to_inches(85)  # 增加大标题高度
-            elif tag == 'h2':
-                base_height = self.px_to_inches(70)  # 增加高度
-            elif tag == 'h3':
-                base_height = self.px_to_inches(55)  # 增加高度
-            elif tag == 'h4':
-                base_height = self.px_to_inches(45)
-            else:
-                base_height = self.px_to_inches(40)
+    def _create_slide(
+        self, prs: Presentation, container: Tag, css_styles: Dict[str, Dict[str, str]]
+    ) -> None:
+        """创建单个幻灯片
 
-        elif element_type == 'list':
-            # 列表高度根据项目数量，增加每项空间
-            item_count = len(element.get('content', []))
-            base_height = self.px_to_inches(45 + item_count * 32)  # 增加每项高度
+        Args:
+            prs (Presentation): PPTX对象，用于添加幻灯片
+            container (Tag): 幻灯片容器元素，从HTML解析得到
+            css_styles (Dict[str, Dict[str, str]]): 解析后的CSS样式字典
+        """
+        # 使用空白布局
+        slide_layout = prs.slide_layouts[6]
+        slide = prs.slides.add_slide(slide_layout)
 
-        elif element_type == 'code':
-            # 代码块根据行数，增加行高
-            line_count = len(content.split('\n'))
-            base_height = self.px_to_inches(55 + line_count * 25)  # 增加代码行高
+        # 设置背景
+        self._set_slide_background(slide, container, css_styles)
 
-        elif element_type == 'quote':
-            # 引用文本，增加高度
-            line_count = max(1, len(content) // 50 + 1)  # 减少每行字符数
-            base_height = self.px_to_inches(50 + line_count * 28)  # 增加引用高度
+        # 提取并添加内容
+        self._add_slide_content(slide, container, css_styles)
 
-        elif element_type in ['paragraph', 'text_block']:
-            # 段落和文本块根据内容长度，增加高度
-            char_count = len(content)
-            if char_count <= 50:
-                base_height = self.px_to_inches(45)  # 增加短文本高度
-            elif char_count <= 150:
-                base_height = self.px_to_inches(60)  # 增加中等文本高度
-            elif char_count <= 300:
-                base_height = self.px_to_inches(80)  # 增加长文本高度
-            else:
-                line_count = max(2, char_count // 60 + 1)  # 减少每行字符数，增加行数
-                base_height = self.px_to_inches(35 + line_count * 25)  # 增加行高
+    def _set_slide_background(
+        self, slide, container: Tag, css_styles: Dict[str, Dict[str, str]]
+    ) -> None:
+        """智能设置幻灯片背景"""
+        # 获取背景样式和装饰元素
+        background_info = self._analyze_background_style(container, css_styles)
 
-        elif element_type == 'inline_text':
-            # 内联文本增加高度
-            base_height = self.px_to_inches(35)  # 增加内联文本高度
-
+        if background_info["needs_decoration"]:
+            # 需要装饰元素，生成背景图片
+            bg_image_path = self._create_decorated_background(
+                background_info, css_styles
+            )
+            # 检查背景图片是否存在，如存在，才添加
+            if bg_image_path and os.path.exists(bg_image_path):
+                try:
+                    slide.shapes.add_picture(
+                        bg_image_path,
+                        0,
+                        0,
+                        Inches(self.config.width_inches),
+                        Inches(self.config.height_inches),
+                    )
+                    self.temp_files.append(bg_image_path)
+                    print(f"添加装饰背景图片: {bg_image_path}")
+                except Exception as e:
+                    print(f"设置装饰背景失败: {e}")
         else:
-            # 默认文本高度，增加空间
-            line_count = max(2, len(content) // 70 + 1)
-            base_height = self.px_to_inches(35 + line_count * 22)  # 增加默认高度
+            # 纯色背景，直接设置PPT背景色
+            self._set_solid_background_color(slide, background_info["background_color"])
+            print(f"设置纯色背景: {background_info['background_color']}")
 
-        # 应用最小和最大高度限制
-        min_height = self.px_to_inches(35)  # 增加最小高度
-        max_height = self.px_to_inches(250)  # 增加最大高度限制
+    def _analyze_background_style(
+        self, container: Tag, css_styles: Dict[str, Dict[str, str]]
+    ) -> Dict[str, Any]:
+        """分析背景样式和装饰需求
 
-        return max(min_height, min(base_height, max_height))
+        Args:
+            container (Tag): 幻灯片容器元素，从HTML解析得到
+            css_styles (Dict[str, Dict[str, str]]): 解析后的CSS样式字典
 
-    def _get_element_spacing(self, element: Dict[str, Any]) -> float:
-        """获取元素间距"""
-        element_type = element.get('type', 'text')
-        tag = element.get('tag', 'p')
+        Returns:
+            Dict[str, Any]: 包含背景颜色、是否需要装饰、装饰信息等的字典，目前包括四个键-值对：
+                - background_color (str): 背景颜色
+                - needs_decoration (bool): 是否需要装饰
+                - decoration_info (Dict[str, str]): 装饰信息
+                - container_classes (List[str]): 容器的类名列表
+        """
+        # 检查容器的class属性
+        container_classes = container.get("class", [])
+        if isinstance(container_classes, str):
+            container_classes = [container_classes]
 
-        # 根据元素类型确定间距
-        if element_type == 'heading' or tag in [
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
-        ]:
-            if tag == 'h1':
-                return self.px_to_inches(30)  # 大标题后更大间距
-            elif tag == 'h2':
-                return self.px_to_inches(25)
-            elif tag in ['h3', 'h4']:
-                return self.px_to_inches(20)
+        background_color = "#ffffff"  # 默认白色
+        needs_decoration = False  # 是否需要装饰
+        decoration_info = {}
+
+        # 从特定类样式获取背景和装饰信息
+        for class_name in container_classes:
+            # 从HTML的class属性中获取类名，转为css中的类选择器，例如：.title-slide，要加“.”
+            class_selector = f".{class_name}"
+            if class_selector in css_styles:
+                class_styles = css_styles[class_selector]
+
+                # 获取背景色
+                bg_style = class_styles.get("background") or class_styles.get(
+                    "background-color"
+                )
+                if bg_style:
+                    background_color = bg_style
+
+                # 检查是否有装饰元素，HTML的上边框或者下边框
+                if class_styles.get("border-top"):
+                    needs_decoration = True
+                    decoration_info["border_top"] = class_styles["border-top"]
+
+                if class_styles.get("border-bottom"):
+                    needs_decoration = True
+                    decoration_info["border_bottom"] = class_styles["border-bottom"]
+
+                # 检查是否有渐变背景
+                if bg_style and (
+                    "gradient" in bg_style.lower()
+                    or "linear-gradient" in bg_style.lower()
+                ):
+                    needs_decoration = True
+                    decoration_info["gradient"] = bg_style
+
+                # 检查伪元素装饰（通过类名推断），一般标题页会有
+                # if class_name == "title-slide":
+                #     needs_decoration = True
+                #     decoration_info["title_decoration"] = True
+
+        # 从slide-container样式获取背景
+        # if ".slide-container" in css_styles:
+        #     container_styles = css_styles[".slide-container"]
+        #     if not background_color or background_color == "#ffffff":
+        #         bg_style = container_styles.get("background") or container_styles.get(
+        #             "background-color"
+        #         )
+        #         if bg_style:
+        #             background_color = bg_style
+
+        return {
+            "background_color": background_color,
+            "needs_decoration": needs_decoration,
+            "decoration_info": decoration_info,
+            "container_classes": container_classes,
+        }
+
+    def _create_decorated_background(
+        self, background_info: Dict, css_styles: Dict[str, Dict[str, str]]
+    ) -> Optional[str]:
+        """创建带装饰的背景图片"""
+        try:
+            from PIL import Image, ImageDraw
+
+            # 创建基础背景
+            img = Image.new("RGB", (self.config.width_px, self.config.height_px))
+            draw = ImageDraw.Draw(img)
+
+            # 设置基础背景色
+            bg_color = self._parse_color_to_rgb(background_info["background_color"])
+            img.paste(bg_color, (0, 0, self.config.width_px, self.config.height_px))
+
+            # 添加装饰元素
+            decoration_info = background_info["decoration_info"]
+
+            # 添加顶部边框
+            if "border_top" in decoration_info:
+                border_info = self._parse_border(decoration_info["border_top"])
+                if border_info:
+                    border_color = self._parse_color_to_rgb(border_info["color"])
+                    border_width = border_info["width"]
+                    draw.rectangle(
+                        [(0, 0), (self.config.width_px, border_width)],
+                        fill=border_color,
+                    )
+
+            # 添加底部边框
+            if "border_bottom" in decoration_info:
+                border_info = self._parse_border(decoration_info["border_bottom"])
+                if border_info:
+                    border_color = self._parse_color_to_rgb(border_info["color"])
+                    border_width = border_info["width"]
+                    draw.rectangle(
+                        [
+                            (0, self.config.height_px - border_width),
+                            (self.config.width_px, self.config.height_px),
+                        ],
+                        fill=border_color,
+                    )
+
+            # 处理渐变背景
+            if "gradient" in decoration_info:
+                # 使用现有的渐变背景生成器
+                gradient_bg = self.background_helper.create_background_image(
+                    decoration_info["gradient"]
+                )
+                if gradient_bg:
+                    # 在渐变背景上添加其他装饰元素
+                    return self._add_decorations_to_gradient(
+                        gradient_bg, decoration_info
+                    )
+
+            # 添加标题页特殊装饰
+            if decoration_info.get("title_decoration"):
+                self._add_title_decorations(draw, decoration_info)
+
+            # 保存装饰背景图片
+            bg_filename = f"decorated_bg_{abs(hash(str(decoration_info))) % 10000}.png"
+            img.save(bg_filename, "PNG")
+            return bg_filename
+
+        except Exception as e:
+            print(f"创建装饰背景失败: {e}")
+            # 回退到原有方法
+            return self.background_helper.create_background_image(
+                background_info["background_color"]
+            )
+
+    def _parse_color_to_rgb(self, color_str: str) -> tuple:
+        """解析颜色字符串为RGB元组
+
+        Args:
+            color_str (str): 颜色字符串，支持十六进制、颜色名称等。
+        Returns:
+            tuple: 包含RGB值的元组，例如：(255, 0, 0)。
+        """
+        color_str = color_str.strip().lower()
+
+        if color_str.startswith("#"):
+            color_str = color_str[1:]
+            if len(color_str) == 6:
+                return (
+                    int(color_str[0:2], 16),
+                    int(color_str[2:4], 16),
+                    int(color_str[4:6], 16),
+                )
+            elif len(color_str) == 3:
+                return (
+                    int(color_str[0] * 2, 16),
+                    int(color_str[1] * 2, 16),
+                    int(color_str[2] * 2, 16),
+                )
+
+        # 常见颜色名称
+        color_map = {
+            "white": (255, 255, 255),
+            "black": (0, 0, 0),
+            "red": (255, 0, 0),
+            "green": (0, 128, 0),
+            "blue": (0, 0, 255),
+            "yellow": (255, 255, 0),
+            "cyan": (0, 255, 255),
+            "magenta": (255, 0, 255),
+        }
+
+        return color_map.get(color_str, (255, 255, 255))  # 默认白色
+
+    def _parse_border(self, border_str: str) -> Optional[Dict]:
+        """解析边框样式字符串"""
+        try:
+            # 解析类似 "4px solid #2c5aa0" 的边框样式
+            parts = border_str.strip().split()
+            if len(parts) >= 3:
+                width_str = parts[0]
+                style = parts[1]
+                color = parts[2]
+
+                # 解析宽度（转换px到实际像素）
+                width = 4  # 默认宽度
+                if width_str.endswith("px"):
+                    width = int(width_str[:-2])
+
+                return {"width": width, "style": style, "color": color}
+        except Exception as e:
+            print(f"解析边框样式失败: {e}")
+
+        return None
+
+    def _set_solid_background_color(self, slide, color_str: str) -> None:
+        """设置纯色背景"""
+        try:
+            # 解析颜色
+            color = ColorHelper.parse_color(color_str)
+            if color:
+                # 设置幻灯片背景色
+                background = slide.background
+                fill = background.fill
+                fill.solid()
+                fill.fore_color.rgb = color
+                print(f"设置幻灯片背景色: {color_str}")
             else:
-                return self.px_to_inches(15)
+                print(f"无法解析颜色: {color_str}，使用默认白色背景")
+        except Exception as e:
+            print(f"设置背景色失败: {e}")
 
-        elif element_type == 'list':
-            return self.px_to_inches(18)  # 列表后适中间距
+    def _add_decorations_to_gradient(
+        self, gradient_bg_path: str, decoration_info: Dict
+    ) -> str:
+        """在渐变背景上添加装饰元素
 
-        elif element_type == 'code':
-            return self.px_to_inches(20)  # 代码块后较大间距
+        Args:
+            gradient_bg_path (str): 渐变背景图片路径。
+            decoration_info (Dict): 包含装饰信息的字典。
+        Returns:
+            str: 增强后的背景图片路径。
+        """
+        try:
+            from PIL import Image, ImageDraw
 
-        elif element_type == 'quote':
-            return self.px_to_inches(18)  # 引用后适中间距
+            # 打开渐变背景图片
+            img = Image.open(gradient_bg_path)
+            draw = ImageDraw.Draw(img)
 
-        elif element_type in ['paragraph', 'text_block']:
-            return self.px_to_inches(15)  # 段落间标准间距
+            # 添加边框装饰
+            if "border_top" in decoration_info:
+                border_info = self._parse_border(decoration_info["border_top"])
+                if border_info:
+                    border_color = self._parse_color_to_rgb(border_info["color"])
+                    border_width = border_info["width"]
+                    draw.rectangle(
+                        [(0, 0), (self.config.width_px, border_width)],
+                        fill=border_color,
+                    )
 
-        elif element_type == 'inline_text':
-            return self.px_to_inches(8)  # 内联文本间距较小
+            if "border_bottom" in decoration_info:
+                border_info = self._parse_border(decoration_info["border_bottom"])
+                if border_info:
+                    border_color = self._parse_color_to_rgb(border_info["color"])
+                    border_width = border_info["width"]
+                    draw.rectangle(
+                        [
+                            (0, self.config.height_px - border_width),
+                            (self.config.width_px, self.config.height_px),
+                        ],
+                        fill=border_color,
+                    )
 
+            # 添加标题页装饰线
+            if decoration_info.get("title_decoration"):
+                self._add_title_decorations(draw, decoration_info)
+
+            # 保存增强的背景图片
+            enhanced_bg_filename = (
+                f"enhanced_bg_{abs(hash(str(decoration_info))) % 10000}.png"
+            )
+            img.save(enhanced_bg_filename, "PNG")
+
+            # 删除原始渐变背景文件
+            if os.path.exists(gradient_bg_path):
+                os.remove(gradient_bg_path)
+
+            return enhanced_bg_filename
+
+        except Exception as e:
+            print(f"添加装饰元素失败: {e}")
+            return gradient_bg_path
+
+    def _add_title_decorations(self, draw, decoration_info: Dict) -> None:
+        """添加标题页特殊装饰元素"""
+        try:
+            # 添加底部装饰线（模拟CSS的::after伪元素）
+            line_width = 200
+            line_height = 2
+            line_y = self.config.height_px - 120  # 距离底部60px转换为像素
+            line_x = (self.config.width_px - line_width) // 2
+
+            # 创建渐变装饰线
+            line_color = self._parse_color_to_rgb("#2c5aa0")
+
+            # 绘制渐变装饰线
+            for i in range(line_width):
+                # 计算透明度渐变
+                distance_from_center = abs(i - line_width // 2)
+                alpha_factor = 1.0 - (distance_from_center / (line_width // 2))
+                alpha_factor = max(0.0, min(1.0, alpha_factor))
+
+                # 应用透明度（通过调整颜色亮度模拟）
+                adjusted_color = tuple(
+                    int(c * alpha_factor + 255 * (1 - alpha_factor)) for c in line_color
+                )
+
+                draw.rectangle(
+                    [(line_x + i, line_y), (line_x + i + 1, line_y + line_height)],
+                    fill=adjusted_color,
+                )
+
+        except Exception as e:
+            print(f"添加标题装饰失败: {e}")
+
+    def _add_slide_content(
+        self, slide, container: Tag, css_styles: Dict[str, Dict[str, str]]
+    ) -> None:
+        """添加幻灯片内容"""
+        # 检查是否为标题页，调整初始位置
+        is_title_slide = "title-slide" in container.get("class", [])
+        if is_title_slide:
+            current_y = self.config.padding_top
         else:
-            return self.px_to_inches(12)  # 默认间距
+            current_y = (
+                self.config.padding_top + 0.1
+            )  # 进一步减少初始间距，让内容更靠上
+
+        # 检查是否有复杂效果需要转换为图片
+        if self._has_complex_effects(container, css_styles):
+            self._add_complex_content_as_image(slide, container, css_styles)
+            return
+
+        # 只获取容器的直接子元素，避免重复处理
+        content_elements = []
+        for child in container.children:
+            if hasattr(child, "name") and child.name in [
+                "h1",
+                "h2",
+                "h3",
+                "p",
+                "ul",
+                "ol",
+                "div",
+            ]:
+                content_elements.append(child)
+
+        for element in content_elements:
+            text = element.get_text().strip()
+            if not text:
+                continue
+
+            # 根据元素类型和上下文确定文本样式
+            if element.name == "h1":
+                if is_title_slide:
+                    current_y = self._add_styled_text(
+                        slide, text, current_y, "main_title", css_styles, element
+                    )
+                else:
+                    current_y = self._add_styled_text(
+                        slide, text, current_y, "slide_title", css_styles, element
+                    )
+            elif element.name == "h2":
+                if is_title_slide:
+                    current_y = self._add_styled_text(
+                        slide, text, current_y, "subtitle", css_styles, element
+                    )
+                else:
+                    current_y = self._add_styled_text(
+                        slide, text, current_y, "heading", css_styles, element
+                    )
+            elif element.name == "h3":
+                current_y = self._add_styled_text(
+                    slide, text, current_y, "heading", css_styles, element
+                )
+            elif element.name == "p":
+                # 检查是否为作者信息或特殊类型
+                if is_title_slide and (
+                    "author" in element.get("class", [])
+                    or any(
+                        keyword in text.lower()
+                        for keyword in ["作者", "演讲者", "报告人"]
+                    )
+                ):
+                    current_y = self._add_styled_text(
+                        slide, text, current_y, "author", css_styles, element
+                    )
+                else:
+                    current_y = self._add_styled_text(
+                        slide, text, current_y, "body_text", css_styles, element
+                    )
+            elif element.name in ["ul", "ol"]:
+                current_y = self._add_list(slide, element, current_y, css_styles)
+            elif element.name == "div":
+                # 处理div中的内容
+                current_y = self._add_div_content(slide, element, current_y, css_styles)
+
+            # 检查是否超出幻灯片边界
+            if current_y > self.config.height_inches - self.config.padding_bottom:
+                break
+
+    def _add_styled_text(
+        self,
+        slide,
+        text: str,
+        y_position: float,
+        style_name: str,
+        css_styles: Dict[str, Dict[str, str]],
+        element: Tag = None,
+    ) -> float:
+        """使用指定样式添加文本，支持内联样式"""
+        style = self.config.text_styles.get(
+            style_name, self.config.text_styles["body_text"]
+        )
+
+        width = (
+            self.config.width_inches
+            - self.config.padding_left
+            - self.config.padding_right
+        )
+
+        # 根据CSS规格精确计算文本框高度
+        chars_per_line = max(40, int(width * 30))  # 更保守的字符数估算
+        estimated_lines = max(1, len(text) // chars_per_line + 1)  # 增加一行缓冲
+        line_height = style.font_size / 72 * 1.3  # 增加行高倍数
+        height = max(0.6, estimated_lines * line_height + 0.3)  # 增加额外高度，避免截断
+
+        textbox = slide.shapes.add_textbox(
+            Inches(self.config.padding_left),
+            Inches(y_position),
+            Inches(width),
+            Inches(height),
+        )
+
+        text_frame = textbox.text_frame
+        text_frame.clear()
+        text_frame.margin_left = Inches(0.05)  # 按CSS规格减少边距
+        text_frame.margin_right = Inches(0.05)
+        text_frame.margin_top = Inches(0.05)  # 减少上下边距
+        text_frame.margin_bottom = Inches(0.05)
+        text_frame.word_wrap = True
+        text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+
+        p = text_frame.paragraphs[0]
+
+        # 如果有HTML元素，解析内联样式
+        if element is not None:
+            self._add_text_with_inline_styles(p, element, style, css_styles)
+        else:
+            p.text = text
+            # 设置默认字体样式
+            font = p.runs[0].font
+            font.name = self.config.default_font
+            font.size = Pt(style.font_size)
+            font.bold = style.bold
+            font.italic = style.italic
+
+            # 设置字体颜色
+            color_str = style.font_color
+            element_styles = css_styles.get(
+                self._get_css_selector_for_style(style_name), {}
+            )
+            if "color" in element_styles:
+                color_str = element_styles["color"]
+
+            color = ColorHelper.parse_color(color_str)
+            if color:
+                font.color.rgb = color
+
+        # 设置对齐方式
+        alignment_map = {
+            "left": PP_PARAGRAPH_ALIGNMENT.LEFT,
+            "center": PP_PARAGRAPH_ALIGNMENT.CENTER,
+            "right": PP_PARAGRAPH_ALIGNMENT.RIGHT,
+            "justify": PP_PARAGRAPH_ALIGNMENT.JUSTIFY,
+        }
+        p.alignment = alignment_map.get(style.alignment, PP_PARAGRAPH_ALIGNMENT.LEFT)
+
+        # 按CSS规格设置段落间距
+        p.line_spacing = style.line_spacing  # 使用CSS标准行间距
+        p.space_before = Pt(style.space_before)  # 使用CSS标准段前间距
+        p.space_after = Pt(style.space_after)  # 使用CSS标准段后间距
+
+        # 为slide_title添加下划线效果
+        if style_name == "slide_title":
+            self._add_title_underline(slide, y_position, width)
+
+        return y_position + height + 0.25  # 增加元素间距，避免文本框重叠
+
+    def _add_text_with_inline_styles(
+        self,
+        paragraph,
+        element: Tag,
+        base_style: "TextStyle",
+        css_styles: Dict[str, Dict[str, str]],
+    ) -> None:
+        """为段落添加带有内联样式的文本"""
+        # 不清空段落，因为可能已经有前缀内容（如列表标记）
+
+        def process_element(elem):
+            """递归处理元素及其子元素"""
+            if elem.name is None:  # 文本节点
+                text_content = str(elem)
+                if text_content:  # 不去除空格，保持原始格式
+                    run = paragraph.add_run()
+                    run.text = text_content
+                    self._apply_base_style_to_run(run, base_style)
+                    return run
+            else:
+                # HTML元素
+                if elem.name == "strong":
+                    # 处理strong标签 - 应用蓝色加粗样式
+                    text_content = elem.get_text()
+                    if text_content:
+                        run = paragraph.add_run()
+                        run.text = text_content
+                        self._apply_base_style_to_run(run, base_style)
+
+                        # 应用strong样式：蓝色 + 加粗
+                        run.font.bold = True
+                        run.font.color.rgb = ColorHelper.parse_color(
+                            "#2c5aa0"
+                        )  # CSS中定义的蓝色
+                        return run
+                elif elem.name in ["em", "i"]:
+                    # 处理斜体标签
+                    text_content = elem.get_text()
+                    if text_content:
+                        run = paragraph.add_run()
+                        run.text = text_content
+                        self._apply_base_style_to_run(run, base_style)
+                        run.font.italic = True
+                        return run
+                elif elem.name in ["b"]:
+                    # 处理粗体标签
+                    text_content = elem.get_text()
+                    if text_content:
+                        run = paragraph.add_run()
+                        run.text = text_content
+                        self._apply_base_style_to_run(run, base_style)
+                        run.font.bold = True
+                        return run
+                else:
+                    # 其他元素，递归处理子元素
+                    for child in elem.children:
+                        process_element(child)
+            return None
+
+        # 处理元素的所有子内容
+        for child in element.children:
+            process_element(child)
+
+        # 如果段落中没有任何run（除了可能的前缀），添加默认文本
+        if len(paragraph.runs) <= 1:  # 考虑可能已有的前缀run
+            text_content = element.get_text().strip()
+            if text_content:
+                run = paragraph.add_run()
+                run.text = text_content
+                self._apply_base_style_to_run(run, base_style)
+
+    def _apply_base_style_to_run(self, run, base_style: "TextStyle") -> None:
+        """为run应用基础样式"""
+        font = run.font
+        font.name = self.config.default_font
+        font.size = Pt(base_style.font_size)
+        if not font.bold:  # 只有在没有被内联样式设置为粗体时才应用基础样式
+            font.bold = base_style.bold
+        if not font.italic:  # 只有在没有被内联样式设置为斜体时才应用基础样式
+            font.italic = base_style.italic
+
+        # 设置默认颜色（如果没有被内联样式覆盖）
+        if not hasattr(font.color, "_color_val") or font.color.rgb is None:
+            color = ColorHelper.parse_color(base_style.font_color)
+            if color:
+                font.color.rgb = color
+
+    def _add_title_underline(self, slide, y_position: float, width: float) -> None:
+        """为标题添加下划线效果"""
+        try:
+            from pptx.shapes.connector import Connector
+            from pptx.enum.shapes import MSO_SHAPE_TYPE
+            from pptx.util import Inches
+            from pptx.dml.color import RGBColor
+
+            # 计算下划线位置（模拟CSS border-bottom效果）
+            underline_y = y_position + 0.65  # 进一步增加标题与下划线的距离
+            underline_width = width * 0.95  # 下划线宽度为文本宽度的95%
+
+            # 添加下划线形状
+            line = slide.shapes.add_connector(
+                connector_type=1,  # 直线
+                begin_x=Inches(self.config.padding_left + width * 0.025),  # 居中对齐
+                begin_y=Inches(underline_y),
+                end_x=Inches(self.config.padding_left + width * 0.975),
+                end_y=Inches(underline_y),
+            )
+
+            # 设置线条样式
+            line.line.color.rgb = RGBColor(44, 90, 160)  # #2c5aa0
+            line.line.width = Inches(0.02)  # 3px转换为英寸
+
+        except Exception as e:
+            print(f"添加标题下划线失败: {e}")
+
+    def _get_css_selector_for_style(self, style_name: str) -> str:
+        """根据样式名称获取对应的CSS选择器"""
+        selector_map = {
+            "main_title": "h1",
+            "slide_title": "h1",
+            "subtitle": "h2",
+            "heading": "h2",
+            "body_text": "p",
+            "author": "p",
+            "caption": "p",
+        }
+        return selector_map.get(style_name, "p")
+
+    def _has_complex_effects(
+        self, container: Tag, css_styles: Dict[str, Dict[str, str]]
+    ) -> bool:
+        """检测是否有复杂的视觉效果"""
+        # 检查容器类名
+        container_classes = container.get("class", [])
+        if isinstance(container_classes, str):
+            container_classes = [container_classes]
+
+        # 复杂效果的类名列表 - 更精确的匹配
+        complex_classes = [
+            "chart-container",
+            "chart-item",
+            "chart-bar",
+            "code-container",
+            "code-block",
+            "insights-container",
+            "insight-card",
+            "stat-box",
+            "two-column-slide",
+            "feature-list",
+            "data-container",
+        ]
+
+        # 检查是否包含复杂效果类名
+        for class_name in container_classes:
+            if class_name in complex_classes:
+                return True
+
+        # 检查子元素是否有复杂效果
+        for complex_class in complex_classes:
+            if container.find(class_=complex_class):
+                return True
+
+        # 检查是否有多列布局或复杂结构
+        if container.find_all(class_=["column", "col", "grid-item"]):
+            return True
+
+        # 检查是否有图表或数据可视化元素
+        if container.find_all(["canvas", "svg"]) or container.find(
+            class_=lambda x: x and ("chart" in x or "graph" in x)
+        ):
+            return True
+
+        return False
+
+    def _add_complex_content_as_image(
+        self, slide, container: Tag, css_styles: Dict[str, Dict[str, str]]
+    ) -> None:
+        """将复杂内容转换为图片添加到幻灯片"""
+        try:
+            # 这里可以使用selenium或其他工具来截图
+            # 暂时用文本框显示提示信息
+            width = (
+                self.config.width_inches
+                - self.config.padding_left
+                - self.config.padding_right
+            )
+            height = 2.0
+
+            textbox = slide.shapes.add_textbox(
+                Inches(self.config.padding_left),
+                Inches(self.config.padding_top + 2),
+                Inches(width),
+                Inches(height),
+            )
+
+            text_frame = textbox.text_frame
+            text_frame.clear()
+            text_frame.margin_left = Inches(0.3)
+            text_frame.margin_right = Inches(0.3)
+            text_frame.margin_top = Inches(0.2)
+            text_frame.margin_bottom = Inches(0.2)
+            text_frame.word_wrap = True
+
+            p = text_frame.paragraphs[0]
+            p.text = f"复杂效果内容: {container.get_text()[:100]}..."
+            p.alignment = PP_PARAGRAPH_ALIGNMENT.CENTER
+
+            # 设置字体样式
+            font = p.runs[0].font
+            font.name = self.config.default_font
+            font.size = Pt(18)
+            font.italic = True
+
+            print(f"检测到复杂效果，已转换为文本提示")
+
+        except Exception as e:
+            print(f"处理复杂内容失败: {e}")
+
+    def _add_list(
+        self,
+        slide,
+        list_elem: Tag,
+        y_position: float,
+        css_styles: Dict[str, Dict[str, str]],
+    ) -> float:
+        """添加列表"""
+        style = self.config.text_styles["list_item"]
+        width = (
+            self.config.width_inches
+            - self.config.padding_left
+            - self.config.padding_right
+            - 0.3
+        )
+
+        # 获取列表项
+        list_items = list_elem.find_all("li")
+        if not list_items:
+            return y_position
+
+        # 更精确的高度估算
+        item_count = len([item for item in list_items if item.get_text().strip()])
+        avg_text_length = sum(
+            len(item.get_text().strip())
+            for item in list_items
+            if item.get_text().strip()
+        ) / max(1, item_count)
+        chars_per_line = max(30, int(width * 25))
+        lines_per_item = max(1, avg_text_length // chars_per_line)
+        line_height = style.font_size / 72 * 1.2
+        height = max(1.0, item_count * lines_per_item * line_height + 0.4)
+
+        textbox = slide.shapes.add_textbox(
+            Inches(self.config.padding_left + 0.3),
+            Inches(y_position),
+            Inches(width),
+            Inches(height),
+        )
+
+        text_frame = textbox.text_frame
+        text_frame.clear()
+        text_frame.margin_left = Inches(0.1)
+        text_frame.margin_right = Inches(0.1)
+        text_frame.margin_top = Inches(0.05)
+        text_frame.margin_bottom = Inches(0.05)
+        text_frame.word_wrap = True
+        text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+
+        # 添加列表项
+        is_ordered = list_elem.name == "ol"
+
+        for i, li in enumerate(list_items):
+            text = li.get_text().strip()
+            if not text:
+                continue
+
+            if i == 0:
+                p = text_frame.paragraphs[0]
+            else:
+                p = text_frame.add_paragraph()
+
+            # 添加列表标记
+            if is_ordered:
+                prefix = f"{i + 1}. "
+            else:
+                prefix = "• "
+
+            # 清空段落并添加前缀
+            p.clear()
+            prefix_run = p.add_run()
+            prefix_run.text = prefix
+            self._apply_base_style_to_run(prefix_run, style)
+
+            # 处理列表项的内联样式
+            self._add_text_with_inline_styles(p, li, style, css_styles)
+
+            p.alignment = PP_PARAGRAPH_ALIGNMENT.LEFT
+            p.line_spacing = style.line_spacing
+            p.space_before = Pt(style.space_before)
+            p.space_after = Pt(style.space_after)
+
+        return y_position + height + 0.25  # 增加列表后的间距，避免重叠
+
+    def _add_div_content(
+        self,
+        slide,
+        div_element: Tag,
+        y_position: float,
+        css_styles: Dict[str, Dict[str, str]],
+    ) -> float:
+        """处理div中的内容"""
+        current_y = y_position
+
+        # 获取div中的所有子元素（包括深层嵌套的）
+        content_elements = div_element.find_all(
+            ["h1", "h2", "h3", "p", "ul", "ol"], recursive=True
+        )
+
+        # 如果没有找到结构化内容，将整个div作为段落处理
+        if not content_elements:
+            text = div_element.get_text().strip()
+            if text:
+                current_y = self._add_styled_text(
+                    slide, text, current_y, "body_text", css_styles, div_element
+                )
+            return current_y
+
+        # 处理找到的结构化内容
+        for element in content_elements:
+            text = element.get_text().strip()
+            if not text:
+                continue
+
+            if element.name == "h1":
+                current_y = self._add_styled_text(
+                    slide, text, current_y, "slide_title", css_styles, element
+                )
+            elif element.name == "h2":
+                current_y = self._add_styled_text(
+                    slide, text, current_y, "heading", css_styles, element
+                )
+            elif element.name == "h3":
+                current_y = self._add_styled_text(
+                    slide, text, current_y, "heading", css_styles, element
+                )
+            elif element.name == "p":
+                current_y = self._add_styled_text(
+                    slide, text, current_y, "body_text", css_styles, element
+                )
+            elif element.name in ["ul", "ol"]:
+                current_y = self._add_list(slide, element, current_y, css_styles)
+
+        return current_y
+
+    def _cleanup_temp_files(self) -> None:
+        """清理临时文件"""
+        for file_path in self.temp_files:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"清理临时文件: {file_path}")
+            except Exception as e:
+                print(f"清理文件失败 {file_path}: {e}")
+
+        self.temp_files.clear()
 
 
-def convert_html_to_ppt(html_file: str,
-                        output_file: str,
-                        config: ConversionConfig = None) -> str:
-    """便捷转换函数"""
-    config = config or ConversionConfig()
-    generator = PPTGenerator(config)
+def main():
+    """主函数"""
+    converter = FixedHTML2PPTXConverter()
 
-    with open(html_file, 'r', encoding='utf-8') as f:
-        html_content = f.read()
+    # 转换ppt-demo
+    ppt_demo_html = "ppt-demo/ppt-demo.html"
+    ppt_demo_css = "ppt-demo/ppt-template.css"
 
-    return generator.convert(html_content, output_file)
+    if os.path.exists(ppt_demo_html):
+        output_file = converter.convert(ppt_demo_html, ppt_demo_css)
+        print(f"\n转换完成: {output_file}")
+    else:
+        print(f"文件不存在: {ppt_demo_html}")
+
+    # 转换complex-demo
+    complex_demo_html = "complex-demo/complex-demo.html"
+    complex_demo_css = "complex-demo/complex-template.css"
+
+    if os.path.exists(complex_demo_html):
+        output_file = converter.convert(complex_demo_html, complex_demo_css)
+        print(f"\n转换完成: {output_file}")
+    else:
+        print(f"文件不存在: {complex_demo_html}")
 
 
 if __name__ == "__main__":
-    import sys
-
-    # 创建配置
-    config = ConversionConfig()
-    config.DEBUG_MODE = True
-    config.VERBOSE_LOGGING = True
-
-    if len(sys.argv) < 3:
-        print("用法: python html2pptx.py <HTML文件> <输出PPT文件>")
-        print("示例:")
-        print("  python html2pptx.py ppt-demo.html output.pptx")
-        print("  python html2pptx.py complex-demo.html complex-output.pptx")
-        sys.exit(1)
-
-    html_file = sys.argv[1]
-    output_file = sys.argv[2]
-
-    try:
-        result = convert_html_to_ppt(html_file, output_file, config)
-        print(f"\n✅ 转换完成: {result}")
-    except Exception as e:
-        print(f"\n❌ 转换失败: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    main()
