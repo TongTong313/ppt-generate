@@ -972,7 +972,19 @@ class HTML2PPTXConverter:
         css_styles: Dict[str, Dict[str, str]],
         element: Tag = None,
     ) -> float:
-        """使用指定样式添加文本，支持内联样式"""
+        """使用指定样式添加文本，支持内联样式
+
+        Args:
+            slide: 幻灯片对象
+            text (str): 要添加的文本内容
+            y_position (float): 文本框的Y轴位置（英寸）
+            style_name (str): 要应用的样式名称
+            css_styles (Dict[str, Dict[str, str]]): 解析后的CSS样式
+            element (Tag, optional): 对应的HTML元素，用于解析内联样式. 默认为None.
+
+        Returns:
+            float: 添加后的Y轴位置（英寸）
+        """
         style = self.config.text_styles.get(
             style_name, self.config.text_styles["body_text"]
         )
@@ -1058,7 +1070,14 @@ class HTML2PPTXConverter:
         base_style: "TextStyle",
         css_styles: Dict[str, Dict[str, str]],
     ) -> None:
-        """为段落添加带有内联样式的文本"""
+        """为段落添加带有内联样式的文本
+
+        Args:
+            paragraph: 段落对象
+            element (Tag): 要添加的HTML元素
+            base_style (TextStyle): 基础样式
+            css_styles (Dict[str, Dict[str, str]]): 解析后的CSS样式
+        """
         # 不清空段落，因为可能已经有前缀内容（如列表标记）
 
         def process_element(elem):
@@ -1123,7 +1142,12 @@ class HTML2PPTXConverter:
                 self._apply_base_style_to_run(run, base_style)
 
     def _apply_base_style_to_run(self, run, base_style: "TextStyle") -> None:
-        """为run应用基础样式"""
+        """为run应用基础样式
+
+        Args:
+            run: run对象
+            base_style (TextStyle): 基础样式
+        """
         font = run.font
         font.name = self.config.default_font
         font.size = Pt(base_style.font_size)
@@ -1182,7 +1206,15 @@ class HTML2PPTXConverter:
     def _has_complex_effects(
         self, container: Tag, css_styles: Dict[str, Dict[str, str]]
     ) -> bool:
-        """检测是否有复杂的视觉效果"""
+        """检测是否有复杂的视觉效果
+
+        Args:
+            container (Tag): 要检查的HTML元素
+            css_styles (Dict[str, Dict[str, str]]): 解析后的CSS样式
+
+        Returns:
+            bool: 如果检测到复杂效果返回True，否则返回False
+        """
         # 检查容器类名
         container_classes = container.get("class", [])
         if isinstance(container_classes, str):
@@ -1228,7 +1260,13 @@ class HTML2PPTXConverter:
     def _add_complex_content_as_image(
         self, slide, container: Tag, css_styles: Dict[str, Dict[str, str]]
     ) -> None:
-        """将复杂内容转换为图片添加到幻灯片"""
+        """将复杂内容转换为图片添加到幻灯片
+
+        Args:
+            slide: 幻灯片对象
+            container (Tag): 要转换的HTML元素
+            css_styles (Dict[str, Dict[str, str]]): 解析后的CSS样式
+        """
         try:
             # 这里可以使用selenium或其他工具来截图
             # 暂时用文本框显示提示信息
@@ -1239,6 +1277,7 @@ class HTML2PPTXConverter:
             )
             height = 2.0
 
+            # 添加文本框
             textbox = slide.shapes.add_textbox(
                 Inches(self.config.padding_left),
                 Inches(self.config.padding_top + 2),
@@ -1246,6 +1285,7 @@ class HTML2PPTXConverter:
                 Inches(height),
             )
 
+            # 配置文本框
             text_frame = textbox.text_frame
             text_frame.clear()
             text_frame.margin_left = Inches(0.3)
@@ -1276,7 +1316,17 @@ class HTML2PPTXConverter:
         y_position: float,
         css_styles: Dict[str, Dict[str, str]],
     ) -> float:
-        """添加列表"""
+        """添加列表
+
+        Args:
+            slide: 幻灯片对象
+            list_elem (Tag): 要添加的HTML元素
+            y_position (float): 文本框的Y轴位置（英寸）
+            css_styles (Dict[str, Dict[str, str]]): 解析后的CSS样式
+
+        Returns:
+            float: 添加后的Y轴位置（英寸）
+        """
         style = self.config.text_styles["list_item"]
         width = (
             self.config.width_inches
