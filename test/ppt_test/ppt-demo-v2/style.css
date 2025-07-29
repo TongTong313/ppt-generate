@@ -1,0 +1,200 @@
+/* 全局样式 */
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: '微软雅黑', 'Microsoft YaHei', sans-serif;
+    background-color: #f0f2f5;
+    overflow-x: hidden;
+}
+
+.ppt-container {
+    width: 100%;
+    height: 100%;
+}
+
+/* 幻灯片基础样式 */
+.slide {
+    width: 100%;
+    height: 100vh; /* 使用视口高度确保每页占满屏幕 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+    padding: 40px;
+    background-color: #ffffff;
+    border-bottom: 1px solid #ddd; /* 页面之间的分隔 */
+    page-break-after: always; /* 用于打印 */
+}
+
+.slide .content {
+    width: 1280px; /* 16:9 aspect ratio content area */
+    height: 720px;
+    max-width: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+/* 首页样式 */
+.page-home .content {
+    text-align: center;
+}
+.page-home h1 {
+    font-size: 48pt; /* 放大标题 */
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+.page-home h2 {
+    font-size: 24pt;
+    margin-bottom: 40px;
+    color: #555;
+}
+.page-home .author, .page-home .date {
+    font-size: 16pt;
+    color: #777;
+}
+
+/* 目录页样式 */
+.page-toc .content {
+    align-items: flex-start;
+}
+.page-toc h2 {
+    font-size: 36pt;
+    font-weight: bold;
+    align-self: center;
+}
+.page-toc hr {
+    width: 100%;
+    border: 1px solid #007bff;
+    margin-bottom: 40px;
+}
+.page-toc ul {
+    list-style: none;
+    padding: 0;
+    font-size: 20pt;
+    width: 100%;
+}
+.page-toc ul li {
+    margin-bottom: 20px;
+    padding-left: 20px;
+}
+
+/* 内容页通用样式 */
+.page-content .content {
+    justify-content: flex-start;
+    align-items: flex-start;
+    text-align: left;
+}
+
+.page-title {
+    font-size: 24pt;
+    font-weight: bold;
+    margin: 0;
+    width: 100%;
+    text-align: left;
+}
+
+.title-line {
+    width: 100%;
+    border: 0;
+    border-top: 2px solid #007bff;
+    margin: 15px 0;
+}
+
+.summary-card {
+    width: calc(100% - 40px);
+    padding: 20px;
+    margin: 20px 0;
+    background-color: transparent; /* 透明背景 */
+    border: 1px solid transparent; /* 透明边框 */
+    text-align: center;
+}
+
+.summary-card p {
+    font-size: 14pt;
+    font-weight: bold;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.main-content {
+    width: 100%;
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+/* 卡片样式 */
+.card {
+    background-color: #fff;
+    border: 2px solid #007bff;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    flex-basis: 100%;
+    height: 100%;
+}
+
+.card h4 {
+    font-size: 14pt;
+    font-weight: bold;
+    margin: 0 0 10px 0;
+    color: #333;
+}
+
+.card p {
+    font-size: 12pt;
+    line-height: 1.8;
+    margin: 0;
+    color: #444;
+}
+
+/* Grid 布局 */
+.grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    width: 100%;
+    height: 60%;
+}
+
+/* 图表容器 */
+.chart-container {
+    width: 80%;
+    min-width: 40%;
+    height: 400px;
+    margin: 0 auto;
+}
+
+/* 总结页样式 */
+.page-summary .content {
+    align-items: center;
+}
+.page-summary h2 {
+    font-size: 36pt;
+    font-weight: bold;
+}
+.page-summary hr {
+    width: 100%;
+    border: 1px solid #007bff;
+    margin-bottom: 40px;
+}
+
+/* 结束页样式 */
+.page-end .content {
+    text-align: center;
+}
+.page-end h2 {
+    font-size: 48pt;
+    font-weight: bold;
+}
+.page-end p {
+    font-size: 24pt;
+    color: #555;
+}

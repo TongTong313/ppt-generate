@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扩散模型PPT</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/echarts@5.6.0/dist/echarts.min.js"></script>
+</head>
+<body>
+    <div class="ppt-container">
+        <!-- 首页 -->
+        <div class="slide page-home">
+            <div class="content">
+                <h1>深入理解扩散模型</h1>
+                <h2>探索生成式AI的前沿技术</h2>
+                <p class="author">Trae AI</p>
+                <p class="date">2024年7月</p>
+            </div>
+        </div>
+
+        <!-- 目录页 -->
+        <div class="slide page-toc">
+            <div class="content">
+                <h2>目录</h2>
+                <hr>
+                <ul>
+                    <li>01. 扩散模型简介</li>
+                    <li>02. 核心原理与过程</li>
+                    <li>03. 关键技术与改进</li>
+                    <li>04. 应用领域与实例</li>
+                    <li>05. 总结与展望</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 内容页 1: 简介 -->
+        <div class="slide page-content">
+            <div class="content">
+                <h3 class="page-title">01. 扩散模型简介</h3>
+                <hr class="title-line">
+                <div class="summary-card">
+                    <p>扩散模型（Diffusion Models）是一类受非平衡热力学启发的生成模型。它们通过一个“前向过程”逐步向数据中添加噪声，再通过一个“反向过程”学习从噪声中恢复原始数据，从而生成高质量的新样本。</p>
+                </div>
+                <div class="main-content grid-2">
+                    <div class="card">
+                        <h4>什么是生成模型？</h4>
+                        <p>生成模型旨在学习现有数据的分布规律，并利用这些规律创造出新的、相似的数据。常见的生成模型包括GANs（生成对抗网络）、VAEs（变分自编码器）以及我们今天的主角——扩散模型。</p>
+                    </div>
+                    <div class="card">
+                        <h4>扩散模型的崛起</h4>
+                        <p>近年来，扩散模型在图像生成、音频合成等领域取得了突破性进展，其生成样本的质量和多样性甚至超越了GANs。DALL-E 2, Imagen, Stable Diffusion等知名模型都基于扩散模型构建。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 内容页 2: 核心原理 -->
+        <div class="slide page-content">
+            <div class="content">
+                <h3 class="page-title">02. 核心原理与过程</h3>
+                <hr class="title-line">
+                <div class="summary-card">
+                    <p>扩散模型的核心在于两个相互对立的过程：前向加噪过程和反向去噪过程。前者是固定的、无须学习的，而后者则通过深度神经网络学习如何逆转噪声的添加，逐步还原出清晰的数据。</p>
+                </div>
+                <div class="main-content grid-2">
+                    <div class="card">
+                        <h4>前向过程 (Forward Process)</h4>
+                        <p>这是一个马尔可夫链过程，从原始数据 \(x_0\) 开始，在 \(T\) 个时间步内，逐步向其中添加高斯噪声。每一步都只依赖于前一步的状态，最终将原始数据变为一个纯粹的高斯噪声分布 \(x_T\)。这个过程是固定的，其参数是预先设定的。</p>
+                    </div>
+                    <div class="card">
+                        <h4>反向过程 (Reverse Process)</h4>
+                        <p>这是模型学习的关键。模型（通常是U-Net架构的神经网络）需要学习预测每一步添加的噪声，或者直接预测去噪后的结果。从纯噪声 \(x_T\) 出发，模型在 \(T\) 个时间步内逐步去除噪声，最终生成一个清晰的样本 \(\hat{x}_0\)。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 内容页 3: 核心原理图示 -->
+        <div class="slide page-content">
+            <div class="content">
+                <h3 class="page-title">02. 核心原理与过程</h3>
+                <hr class="title-line">
+                <div class="summary-card">
+                    <p>下图直观地展示了扩散模型的前向加噪与反向去噪过程。左侧是不断向清晰图像添加噪声，直至其变为完全的随机噪声；右侧则是模型学习如何从噪声中逐步恢复出清晰图像。</p>
+                </div>
+                <div class="main-content">
+                    <div id="diffusion-process-chart" class="chart-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 内容页 4: 关键技术 -->
+        <div class="slide page-content">
+            <div class="content">
+                <h3 class="page-title">03. 关键技术与改进</h3>
+                <hr class="title-line">
+                <div class="summary-card">
+                    <p>为了提升扩散模型的性能和效率，研究者们提出了多种关键技术和改进策略，例如DDPM、DDIM以及在模型架构上的创新，这些都极大地推动了扩散模型的发展和应用。</p>
+                </div>
+                <div class="main-content grid-2">
+                    <div class="card">
+                        <h4>DDPM (Denoising Diffusion Probabilistic Models)</h4>
+                        <p>DDPM是扩散模型发展中的一个里程碑。它简化了训练目标，不再直接预测去噪后的图像，而是预测每一步所添加的噪声，这使得训练过程更加稳定和高效，并显著提升了生成质量。</p>
+                    </div>
+                    <div class="card">
+                        <h4>DDIM (Denoising Diffusion Implicit Models)</h4>
+                        <p>DDIM通过引入一个非马尔可夫的推理过程，使得采样速度可以大幅提升（例如从1000步减少到50步），同时保持较高的生成质量。这使得扩散模型在实际应用中变得更加可行。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 内容页 5: 应用领域 -->
+        <div class="slide page-content">
+            <div class="content">
+                <h3 class="page-title">04. 应用领域与实例</h3>
+                <hr class="title-line">
+                <div class="summary-card">
+                    <p>凭借其强大的生成能力，扩散模型已经在多个领域展现出巨大的应用潜力，从艺术创作到科学研究，其影响力正在不断扩大。下面是一些主要的应用领域及其市场规模预测。</p>
+                </div>
+                <div class="main-content">
+                     <div id="application-chart" class="chart-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 总结页 -->
+        <div class="slide page-summary">
+            <div class="content">
+                <h2>总结与展望</h2>
+                <hr>
+                <div class="main-content grid-2">
+                    <div class="card">
+                        <h4>总结</h4>
+                        <p>扩散模型通过模拟一个加噪和去噪的过程，成为当前最强大的生成模型之一。它们在生成质量、多样性和可控性方面都表现出色，并在图像、文本、音频等多个领域取得了革命性的成果。</p>
+                    </div>
+                    <div class="card">
+                        <h4>展望</h4>
+                        <p>未来，扩散模型的研究将聚焦于提升采样效率、降低计算成本、增强可控性（如更精细的文本到图像生成），以及探索其在视频生成、药物发现、材料设计等更复杂领域的应用潜力。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 结束页 -->
+        <div class="slide page-end">
+            <div class="content">
+                <h2>感谢观看</h2>
+                <p>Q & A</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ECharts 初始化 - 核心原理图示
+        var diffusionChart = echarts.init(document.getElementById('diffusion-process-chart'));
+        var diffusionOption = {
+            title: {
+                text: '扩散模型原理示意图',
+                left: 'center'
+            },
+            tooltip: {},
+            series: [
+                {
+                    type: 'graph',
+                    layout: 'none',
+                    symbolSize: 50,
+                    roam: false,
+                    label: {
+                        show: true
+                    },
+                    edgeSymbol: ['circle', 'arrow'],
+                    edgeSymbolSize: [4, 10],
+                    edgeLabel: {
+                        fontSize: 14
+                    },
+                    data: [
+                        { name: '清晰图像\\nx_0', x: 100, y: 300, itemStyle: { color: '#5470C6' } },
+                        { name: '... (加噪)', x: 250, y: 300 },
+                        { name: '噪声图像\\nx_t', x: 400, y: 300, itemStyle: { color: '#91CC75' } },
+                        { name: '... (更噪)', x: 550, y: 300 },
+                        { name: '纯噪声\\nx_T', x: 700, y: 300, itemStyle: { color: '#FAC858' } }
+                    ],
+                    links: [
+                        {
+                            source: '清晰图像\\nx_0',
+                            target: '... (加噪)',
+                            label: { show: true, formatter: '前向加噪' }
+                        },
+                        {
+                            source: '... (加噪)',
+                            target: '噪声图像\\nx_t'
+                        },
+                        {
+                            source: '噪声图像\\nx_t',
+                            target: '... (更噪)',
+                        },
+                        {
+                            source: '... (更噪)',
+                            target: '纯噪声\\nx_T'
+                        },
+                        {
+                            source: '纯噪声\\nx_T',
+                            target: '... (更噪)',
+                            label: { show: true, formatter: '反向去噪' },
+                            lineStyle: { curveness: 0.2 }
+                        },
+                        {
+                            source: '... (更噪)',
+                            target: '噪声图像\\nx_t',
+                            lineStyle: { curveness: 0.2 }
+                        },
+                        {
+                            source: '噪声图像\\nx_t',
+                            target: '... (加噪)',
+                            lineStyle: { curveness: 0.2 }
+                        },
+                        {
+                            source: '... (加噪)',
+                            target: '清晰图像\\nx_0',
+                            lineStyle: { curveness: 0.2 }
+                        }
+                    ]
+                }
+            ]
+        };
+        diffusionChart.setOption(diffusionOption);
+
+        // ECharts 初始化 - 应用领域
+        var applicationChart = echarts.init(document.getElementById('application-chart'));
+        var applicationOption = {
+            title: {
+                text: '扩散模型主要应用领域',
+                left: 'center'
+            },
+            tooltip: {
+                trigger: 'item'
+            },
+            legend: {
+                orient: 'vertical',
+                left: 'left',
+            },
+            series: [
+                {
+                    name: '应用领域',
+                    type: 'pie',
+                    radius: '50%',
+                    data: [
+                        { value: 40, name: '图像生成与编辑' },
+                        { value: 25, name: '文本到图像合成' },
+                        { value: 15, name: '音频与语音合成' },
+                        { value: 10, name: '视频生成' },
+                        { value: 5, name: '科学研究(药物、材料)' },
+                        { value: 5, name: '其他' }
+                    ],
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    }
+                }
+            ]
+        };
+        applicationChart.setOption(applicationOption);
+
+        window.addEventListener('resize', function() {
+            diffusionChart.resize();
+            applicationChart.resize();
+        });
+    </script>
+</body>
+</html>
