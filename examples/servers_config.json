@@ -1,0 +1,55 @@
+{
+  "servers": [
+    {
+      "name": "weather",
+      "url": "http://localhost:8001",
+      "description": "天气查询服务",
+      "enabled": true,
+      "retry_attempts": 3,
+      "timeout": 30
+    },
+    {
+      "name": "database",
+      "url": "http://localhost:8002",
+      "description": "数据库操作服务",
+      "enabled": true,
+      "retry_attempts": 2,
+      "timeout": 60
+    },
+    {
+      "name": "file_manager",
+      "url": "http://localhost:8003",
+      "description": "文件管理服务",
+      "enabled": true,
+      "retry_attempts": 3,
+      "timeout": 45
+    },
+    {
+      "name": "calculator",
+      "url": "http://localhost:8004",
+      "description": "计算器服务",
+      "enabled": false,
+      "retry_attempts": 1,
+      "timeout": 15
+    },
+    {
+      "name": "translator",
+      "url": "http://localhost:8005",
+      "description": "翻译服务",
+      "enabled": true,
+      "retry_attempts": 2,
+      "timeout": 30
+    }
+  ],
+  "client_settings": {
+    "max_concurrent_connections": 5,
+    "connection_timeout": 30,
+    "retry_delay": 2,
+    "health_check_interval": 60
+  },
+  "llm_settings": {
+    "model": "qwen-plus",
+    "max_tokens": 1000,
+    "temperature": 0.7
+  }
+}
