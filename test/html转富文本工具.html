@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML到富文本转换器</title>
+    <style>
+        :root {
+            --primary: #5e35b1;
+            --primary-light: #7e57c2;
+            --secondary: #26a69a;
+            --dark: #263238;
+            --light: #f5f5f7;
+            --gray: #78909c;
+            --success: #66bb6a;
+            --warning: #ffca28;
+            --danger: #ef5350;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 30px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            transform: rotate(30deg);
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            position: relative;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 800px;
+            position: relative;
+        }
+
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 5px;
+            margin-top: 25px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .tab.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .content-area {
+            display: flex;
+            min-height: 500px;
+            padding: 0;
+        }
+
+        .input-section {
+            flex: 1;
+            padding: 30px;
+            background: var(--light);
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .output-section {
+            flex: 1;
+            padding: 30px;
+            background: white;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            color: var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--primary);
+        }
+
+        textarea {
+            width: 100%;
+            height: 350px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            resize: vertical;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            background: white;
+            transition: border 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(94, 53, 177, 0.1);
+        }
+
+        .preview-container {
+            height: 350px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+        
+        /* 预览内容缩放容器 */
+        .preview-content {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            padding: 20px;
+            box-sizing: border-box;
+            transform-origin: top left;
+            transition: transform 0.3s ease;
+        }
+        
+        /* 预览容器内容样式隔离 */
+        .preview-content > * {
+            all: revert;
+        }
+        
+        /* 缩放控制按钮 */
+        .zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 6px;
+            padding: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .zoom-btn {
+            width: 30px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        
+        .zoom-btn:hover {
+            background: var(--primary-light);
+        }
+        
+        .zoom-level {
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            font-size: 12px;
+            color: var(--dark);
+            font-weight: 600;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 15px;
+            padding: 30px;
+            background: var(--light);
+            border-top: 1px solid #e0e0e0;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(94, 53, 177, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(94, 53, 177, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(90deg, var(--secondary) 0%, #009688 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(38, 166, 154, 0.3);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(38, 166, 154, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: rgba(94, 53, 177, 0.1);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status.success {
+            background: rgba(102, 187, 106, 0.15);
+            color: #2e7d32;
+            border: 1px solid rgba(102, 187, 106, 0.3);
+            display: block;
+        }
+
+        .status.error {
+            background: rgba(239, 83, 80, 0.15);
+            color: #c62828;
+            border: 1px solid rgba(239, 83, 80, 0.3);
+            display: block;
+        }
+
+        .file-upload {
+            margin-top: 20px;
+            position: relative;
+        }
+
+        .file-upload input {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-label {
+            display: block;
+            padding: 15px;
+            background: rgba(94, 53, 177, 0.1);
+            border-radius: 10px;
+            text-align: center;
+            color: var(--primary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .file-label:hover {
+            background: rgba(94, 53, 177, 0.2);
+        }
+
+        .instructions {
+            background: rgba(38, 166, 154, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: var(--secondary);
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #6c757d;
+            font-size: 0.95rem;
+            background: var(--dark);
+            color: white;
+        }
+
+        @media (max-width: 900px) {
+            .content-area {
+                flex-direction: column;
+            }
+
+            .input-section,
+            .output-section {
+                width: 100%;
+            }
+
+            .input-section {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>HTML到富文本转换器</h1>
+            <p class="subtitle">将HTML代码完美转换为可粘贴的富文本格式，保留所有样式和布局</p>
+
+            <div class="tabs">
+                <div class="tab active" data-tab="html">HTML输入</div>
+                <div class="tab" data-tab="preview">预览与复制</div>
+            </div>
+        </header>
+
+        <div class="content-area">
+            <div class="input-section">
+                <h3 class="section-title">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
+                    </svg>
+                    HTML输入
+                </h3>
+
+                <textarea id="htmlInput" placeholder="在此粘贴HTML代码...">&lt;div style="font-family: Arial; max-width: 600px; margin: 0 auto;"&gt;
+    &lt;h1 style="color: #5e35b1; border-bottom: 2px solid #5e35b1; padding-bottom: 10px;"&gt;季度业务报告&lt;/h1&gt;
+    
+    &lt;div style="background: #f5f5f7; padding: 20px; border-radius: 10px; margin-top: 20px;"&gt;
+        &lt;h2 style="color: #26a69a;"&gt;关键业绩指标&lt;/h2&gt;
+        &lt;ul style="list-style-type: circle; padding-left: 20px;"&gt;
+            &lt;li&gt;收入增长: &lt;strong style="color: #2e7d32;"&gt;25%&lt;/strong&gt;（同比）&lt;/li&gt;
+            &lt;li&gt;新客户获取: &lt;strong style="color: #2e7d32;"&gt;42&lt;/strong&gt; 家企业&lt;/li&gt;
+            &lt;li&gt;客户满意度: &lt;strong style="color: #2e7d32;"&gt;94%&lt;/strong&gt;&lt;/li&gt;
+        &lt;/ul&gt;
+    &lt;/div&gt;
+    
+    &lt;div style="margin-top: 30px;"&gt;
+        &lt;h2 style="color: #26a69a;"&gt;项目进展&lt;/h2&gt;
+        &lt;table style="width: 100%; border-collapse: collapse; margin-top: 15px;"&gt;
+            &lt;thead&gt;
+                &lt;tr style="background: #7e57c2; color: white;"&gt;
+                    &lt;th style="padding: 12px; text-align: left;"&gt;项目名称&lt;/th&gt;
+                    &lt;th style="padding: 12px; text-align: left;"&gt;负责人&lt;/th&gt;
+                    &lt;th style="padding: 12px; text-align: left;"&gt;状态&lt;/th&gt;
+                &lt;/tr&gt;
+            &lt;/thead&gt;
+            &lt;tbody&gt;
+                &lt;tr style="border-bottom: 1px solid #e0e0e0;"&gt;
+                    &lt;td style="padding: 12px;"&gt;市场拓展计划&lt;/td&gt;
+                    &lt;td style="padding: 12px;"&gt;张经理&lt;/td&gt;
+                    &lt;td style="padding: 12px; color: #2e7d32;"&gt;已完成&lt;/td&gt;
+                &lt;/tr&gt;
+                &lt;tr style="border-bottom: 1px solid #e0e0e0;"&gt;
+                    &lt;td style="padding: 12px;"&gt;产品优化项目&lt;/td&gt;
+                    &lt;td style="padding: 12px;"&gt;李总监&lt;/td&gt;
+                    &lt;td style="padding: 12px; color: #ff9800;"&gt;进行中&lt;/td&gt;
+                &lt;/tr&gt;
+                &lt;tr&gt;
+                    &lt;td style="padding: 12px;"&gt;客户管理系统升级&lt;/td&gt;
+                    &lt;td style="padding: 12px;"&gt;王主管&lt;/td&gt;
+                    &lt;td style="padding: 12px; color: #f44336;"&gt;待启动&lt;/td&gt;
+                &lt;/tr&gt;
+            &lt;/tbody&gt;
+        &lt;/table&gt;
+    &lt;/div&gt;
+    
+    &lt;div style="margin-top: 30px; background: #e3f2fd; padding: 20px; border-radius: 10px;"&gt;
+        &lt;h2 style="color: #1565c0;"&gt;下季度目标&lt;/h2&gt;
+        &lt;ol style="padding-left: 25px;"&gt;
+            &lt;li style="margin-bottom: 10px;"&gt;实现收入增长目标30%&lt;/li&gt;
+            &lt;li style="margin-bottom: 10px;"&gt;完成产品优化项目并上线&lt;/li&gt;
+            &lt;li style="margin-bottom: 10px;"&gt;启动客户管理系统升级项目&lt;/li&gt;
+        &lt;/ol&gt;
+    &lt;/div&gt;
+&lt;/div&gt;</textarea>
+
+                <div class="file-upload">
+                    <label class="file-label">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"
+                            style="vertical-align: middle; margin-right: 8px;">
+                            <path
+                                d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+                            <path
+                                d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
+                        </svg>
+                        上传HTML文件
+                        <input type="file" id="fileUpload" accept=".html,.htm">
+                    </label>
+                </div>
+
+                <div class="instructions">
+                    <h3>使用说明：</h3>
+                    <ul>
+                        <li>在左侧文本框中输入或粘贴HTML代码</li>
+                        <li>点击"预览HTML"按钮查看渲染效果</li>
+                        <li>点击"复制为富文本"按钮将内容复制到剪贴板</li>
+                        <li>在Word、邮件编辑器或其他富文本编辑器中粘贴即可</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <h3 class="section-title">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19M10,18V14H11V11.5C11,10.4 10.1,9.5 9,9.5H8V8H11.5V11.5H13V9.5C13,8.4 12.1,7.5 11,7.5H7C5.9,7.5 5,8.4 5,9.5V14.5H8V16.5H5V18H10M17,12H15.5V10.5H13.5V12H12V15H13.5V13.5H15.5V15H17V12Z" />
+                    </svg>
+                    预览与复制
+                </h3>
+
+                <div class="preview-container" id="preview">
+                    <p style="text-align: center; padding: 50px 20px; color: #78909c;">
+                        HTML预览将在此处显示
+                    </p>
+                </div>
+
+                <div class="status" id="status"></div>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn btn-primary" id="previewBtn">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z" />
+                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z" />
+                </svg>
+                预览HTML
+            </button>
+
+            <button class="btn btn-secondary" id="copyBtn">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd"
+                        d="M10 1.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-1Zm-5 0A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1A1.5 1.5 0 0 1 9.5 4h-3A1.5 1.5 0 0 1 5 2.5v-1Zm-2 0h1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V3.5a1 1 0 0 0-1-1h-1v-1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Z" />
+                </svg>
+                复制为富文本
+            </button>
+
+            <button class="btn btn-outline" id="clearBtn">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                    <path fill-rule="evenodd"
+                        d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                </svg>
+                清空内容
+            </button>
+        </div>
+        <footer>
+            <p>聚智智能体平台团队 &copy; 2025 | 可将html转换回富文本 | 支持现代浏览器</p>
+        </footer>
+    </div>
+
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const htmlInput = document.getElementById('htmlInput');
+            const preview = document.getElementById('preview');
+            const previewBtn = document.getElementById('previewBtn');
+            const copyBtn = document.getElementById('copyBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const fileUpload = document.getElementById('fileUpload');
+            const status = document.getElementById('status');
+            const tabs = document.querySelectorAll('.tab');
+
+            // 预览HTML
+            previewBtn.addEventListener('click', () => {
+                if (!htmlInput.value.trim()) {
+                    showStatus('请输入HTML代码', 'error');
+                    return;
+                }
+
+                try {
+                    // 清理并安全地设置HTML内容
+                    preview.innerHTML = '';
+                    
+                    // 创建缩放控制按钮
+                    const zoomControls = document.createElement('div');
+                    zoomControls.className = 'zoom-controls';
+                    zoomControls.innerHTML = `
+                        <button class="zoom-btn" onclick="zoomOut()" title="缩小">-</button>
+                        <div class="zoom-level">100%</div>
+                        <button class="zoom-btn" onclick="zoomIn()" title="放大">+</button>
+                        <button class="zoom-btn" onclick="resetZoom()" title="重置" style="width: 40px; font-size: 12px;">1:1</button>
+                    `;
+                    
+                    // 创建预览内容容器
+                    const previewContent = document.createElement('div');
+                    previewContent.className = 'preview-content';
+                    previewContent.style.cssText = `
+                        font-family: Arial, sans-serif;
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #000;
+                        background: transparent;
+                        margin: 0;
+                        padding: 20px;
+                        box-sizing: border-box;
+                    `;
+                    
+                    previewContent.innerHTML = htmlInput.value;
+                    preview.appendChild(zoomControls);
+                    preview.appendChild(previewContent);
+                    
+                    // 重置缩放
+                    currentZoom = 1;
+                    updateZoom();
+                    
+                    showStatus('HTML预览已更新', 'success');
+                } catch (err) {
+                    showStatus('HTML解析错误: ' + err.message, 'error');
+                }
+            });
+
+            // 复制为富文本
+            copyBtn.addEventListener('click', async () => {
+                if (!htmlInput.value.trim()) {
+                    showStatus('请输入HTML代码', 'error');
+                    return;
+                }
+
+                try {
+                    // 使用现代Clipboard API
+                    if (navigator.clipboard && navigator.clipboard.write) {
+                        await copyAsRichText(htmlInput.value);
+                        showStatus('富文本已复制到剪贴板！可粘贴到Word、邮件等应用中', 'success');
+                    } else {
+                        // 降级到传统方法
+                        await copyAsRichTextFallback(htmlInput.value);
+                        showStatus('富文本已复制到剪贴板！可粘贴到Word、邮件等应用中', 'success');
+                    }
+                } catch (err) {
+                    showStatus('复制失败: ' + err.message, 'error');
+                }
+            });
+
+            // 现代富文本复制方法
+            async function copyAsRichText(htmlContent) {
+                // 创建临时容器进行样式处理
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+                
+                // 添加基础样式确保富文本格式正确
+                tempDiv.style.cssText = `
+                    font-family: Arial, sans-serif;
+                    font-size: 14px;
+                    line-height: 1.6;
+                    color: #000;
+                    background: #fff;
+                    margin: 0;
+                    padding: 0;
+                `;
+                
+                document.body.appendChild(tempDiv);
+                
+                try {
+                    // 创建富文本数据
+                    const htmlBlob = new Blob([tempDiv.outerHTML], { type: 'text/html' });
+                    const textContent = tempDiv.textContent || tempDiv.innerText || '';
+                    const textBlob = new Blob([textContent], { type: 'text/plain' });
+                    
+                    const clipboardItem = new ClipboardItem({
+                        'text/html': htmlBlob,
+                        'text/plain': textBlob
+                    });
+                    
+                    await navigator.clipboard.write([clipboardItem]);
+                } finally {
+                    document.body.removeChild(tempDiv);
+                }
+            }
+
+            // 传统富文本复制方法（降级方案）
+            async function copyAsRichTextFallback(htmlContent) {
+                // 创建临时容器
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+                
+                // 设置样式确保在不可见位置且保持格式
+                tempDiv.style.cssText = `
+                    position: fixed;
+                    left: -9999px;
+                    top: -9999px;
+                    width: 1px;
+                    height: 1px;
+                    opacity: 0;
+                    font-family: Arial, sans-serif;
+                    font-size: 14px;
+                    line-height: 1.6;
+                    color: #000;
+                    background: #fff;
+                    white-space: pre-wrap;
+                `;
+                
+                document.body.appendChild(tempDiv);
+                
+                try {
+                    // 选择内容
+                    const range = document.createRange();
+                    range.selectNodeContents(tempDiv);
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    
+                    // 复制富文本
+                    const success = document.execCommand('copy');
+                    if (!success) {
+                        throw new Error('复制命令执行失败');
+                    }
+                    
+                    // 清理选择
+                    selection.removeAllRanges();
+                } finally {
+                    document.body.removeChild(tempDiv);
+                }
+            }
+
+            // 清空内容
+            clearBtn.addEventListener('click', () => {
+                htmlInput.value = '';
+                preview.innerHTML = '<p style="text-align: center; padding: 50px 20px; color: #78909c;">HTML预览将在此处显示</p>';
+                status.className = 'status';
+            });
+
+            // 文件上传
+            fileUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    htmlInput.value = event.target.result;
+                    showStatus('HTML文件已加载', 'success');
+                };
+                reader.readAsText(file);
+            });
+
+            // 缩放控制
+            let currentZoom = 1;
+            const zoomStep = 0.1;
+            const minZoom = 0.3;
+            const maxZoom = 2;
+            
+            // 标签切换
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    if (tab.dataset.tab === 'preview') {
+                        previewBtn.click();
+                    }
+                });
+            });
+            
+            // 缩放功能
+            function updateZoom() {
+                const previewContent = document.querySelector('.preview-content');
+                const zoomLevel = document.querySelector('.zoom-level');
+                if (previewContent) {
+                    previewContent.style.transform = `scale(${currentZoom})`;
+                    previewContent.style.width = `${100 / currentZoom}%`;
+                    previewContent.style.height = `${100 / currentZoom}%`;
+                }
+                if (zoomLevel) {
+                    zoomLevel.textContent = `${Math.round(currentZoom * 100)}%`;
+                }
+            }
+            
+            function zoomIn() {
+                if (currentZoom < maxZoom) {
+                    currentZoom = Math.min(maxZoom, currentZoom + zoomStep);
+                    updateZoom();
+                }
+            }
+            
+            function zoomOut() {
+                if (currentZoom > minZoom) {
+                    currentZoom = Math.max(minZoom, currentZoom - zoomStep);
+                    updateZoom();
+                }
+            }
+            
+            function resetZoom() {
+                currentZoom = 1;
+                updateZoom();
+            }
+
+            // 显示状态消息
+            function showStatus(message, type) {
+                status.textContent = message;
+                status.className = 'status ' + type;
+            }
+
+            // 将缩放函数绑定到全局作用域
+            window.zoomIn = zoomIn;
+            window.zoomOut = zoomOut;
+            window.resetZoom = resetZoom;
+            
+            // 初始化预览
+            previewBtn.click();
+        });
+    </script>
+</body>
+
+</html>

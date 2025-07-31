@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级富文本提取工具</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --dark: #1d3557;
+            --light: #f8f9fa;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(120deg, #e0eafc 0%, #cfdef3 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 30px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            transform: rotate(30deg);
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            position: relative;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 800px;
+            position: relative;
+        }
+
+        .instructions {
+            background: var(--light);
+            padding: 25px 40px;
+            border-bottom: 2px solid #e9ecef;
+            position: relative;
+        }
+
+        .steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            margin: 25px 0;
+        }
+
+        .step-card {
+            flex: 1;
+            min-width: 250px;
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border-top: 4px solid var(--primary);
+            transition: transform 0.3s;
+        }
+
+        .step-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+        }
+
+        .content-area {
+            display: flex;
+            min-height: 500px;
+            padding: 0;
+        }
+
+        .input-section {
+            flex: 1;
+            padding: 30px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .output-section {
+            flex: 1;
+            padding: 30px;
+            background: white;
+            position: relative;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            color: var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--success);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--primary);
+        }
+
+        .input-container {
+            position: relative;
+            height: 350px;
+            border: 2px dashed #adb5bd;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 30px;
+            background: white;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .input-container.active {
+            border-color: var(--primary);
+            background: rgba(67, 97, 238, 0.05);
+        }
+
+        .input-container:hover {
+            border-color: var(--primary);
+        }
+
+        .paste-icon {
+            width: 80px;
+            height: 80px;
+            fill: #adb5bd;
+            margin-bottom: 20px;
+            transition: fill 0.3s;
+        }
+
+        .input-container:hover .paste-icon {
+            fill: var(--primary);
+        }
+
+        .preview-container {
+            height: 350px;
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            overflow: auto;
+            padding: 20px;
+            background: white;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 15px;
+            padding: 30px;
+            background: var(--light);
+            border-top: 1px solid #dee2e6;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(67, 97, 238, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(67, 97, 238, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(90deg, var(--success) 0%, #4895ef 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(76, 201, 240, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(76, 201, 240, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: rgba(67, 97, 238, 0.1);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #6c757d;
+            font-size: 0.95rem;
+            background: var(--dark);
+            color: white;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: rgba(76, 201, 240, 0.15);
+            color: #1a5f9e;
+            border: 1px solid rgba(76, 201, 240, 0.3);
+        }
+
+        .status.error {
+            background: rgba(255, 99, 132, 0.15);
+            color: #d32f2f;
+            border: 1px solid rgba(255, 99, 132, 0.3);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 900px) {
+            .content-area {
+                flex-direction: column;
+            }
+
+            .input-section,
+            .output-section {
+                width: 100%;
+            }
+
+            .input-section {
+                border-right: none;
+                border-bottom: 1px solid #dee2e6;
+            }
+
+            .steps {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>高级富文本提取工具</h1>
+            <p class="subtitle">完美提取网页中的原始HTML格式，保留所有图片、样式和布局</p>
+        </header>
+
+        <div class="instructions">
+            <h2>为什么普通粘贴会丢失格式？</h2>
+            <p>浏览器默认粘贴的是渲染后的文本，而不是原始HTML代码。本工具通过专业方法直接获取剪贴板中的原始HTML数据。</p>
+
+            <div class="steps">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <h3>复制网页内容</h3>
+                    <p>在目标网页选择需要提取的区域，右键点击"复制"</p>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <h3>粘贴到本工具</h3>
+                    <p>点击左侧区域或使用快捷键粘贴</p>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <h3>提取原始HTML</h3>
+                    <p>工具自动获取剪贴板中的完整HTML代码</p>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">4</div>
+                    <h3>下载完整页面</h3>
+                    <p>保存为HTML文件，完美保留原始格式</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div class="input-section">
+                <h3 class="section-title">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z" />
+                    </svg>
+                    粘贴区域
+                </h3>
+
+                <div class="input-container" id="pasteArea">
+                    <svg class="paste-icon" viewBox="0 0 24 24">
+                        <path
+                            d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z" />
+                    </svg>
+                    <h3>点击此处粘贴或按 Ctrl+V</h3>
+                    <p>我们将直接读取剪贴板中的原始HTML格式</p>
+                    <div class="status hidden" id="pasteStatus"></div>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <h3 class="section-title">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
+                    </svg>
+                    预览效果
+                </h3>
+
+                <div class="preview-container" id="preview">
+                    <p style="text-align: center; padding: 50px 20px; color: #6c757d;">
+                        提取的富文本内容将在此处显示
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn btn-primary" id="downloadBtn" disabled>
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+                    <path
+                        d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
+                </svg>
+                下载HTML文件
+            </button>
+
+            <button class="btn btn-success" id="copyHtmlBtn" disabled>
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd"
+                        d="M10 1.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-1Zm-5 0A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1A1.5 1.5 0 0 1 9.5 4h-3A1.5 1.5 0 0 1 5 2.5v-1Zm-2 0h1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V3.5a1 1 0 0 0-1-1h-1v-1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Z" />
+                </svg>
+                复制HTML代码
+            </button>
+
+            <button class="btn btn-outline" id="clearBtn">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                    <path fill-rule="evenodd"
+                        d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                </svg>
+                清空内容
+            </button>
+        </div>
+
+        <footer>
+            <p>聚智智能体平台团队 &copy; 2025 | 可保留所有图片、样式和布局 | 支持现代浏览器</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const pasteArea = document.getElementById('pasteArea');
+            const preview = document.getElementById('preview');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const copyHtmlBtn = document.getElementById('copyHtmlBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const pasteStatus = document.getElementById('pasteStatus');
+
+            let originalHtml = '';
+
+            // 处理粘贴事件
+            pasteArea.addEventListener('click', async () => {
+                try {
+                    // 请求剪贴板访问权限
+                    const permission = await navigator.permissions.query({
+                        name: 'clipboard-read'
+                    });
+
+                    if (permission.state === 'denied') {
+                        showStatus('需要剪贴板访问权限，请允许权限后重试', 'error');
+                        return;
+                    }
+
+                    // 获取剪贴板中的HTML内容
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const clipboardItem of clipboardItems) {
+                        for (const type of clipboardItem.types) {
+                            if (type === 'text/html') {
+                                const blob = await clipboardItem.getType(type);
+                                const html = await blob.text();
+
+                                // 保存原始HTML
+                                originalHtml = html;
+
+                                // 显示在预览区域
+                                preview.innerHTML = html;
+
+                                // 激活按钮
+                                downloadBtn.disabled = false;
+                                copyHtmlBtn.disabled = false;
+
+                                // 显示成功状态
+                                showStatus('富文本提取成功！已保留所有格式和图片', 'success');
+
+                                // 高亮显示粘贴区域
+                                pasteArea.classList.add('active');
+
+                                return;
+                            }
+                        }
+                    }
+
+                    showStatus('剪贴板中未找到HTML格式内容', 'error');
+                } catch (err) {
+                    console.error('粘贴失败:', err);
+                    showStatus(`错误: ${err.message}`, 'error');
+                }
+            });
+
+            // 监听全局粘贴事件
+            document.addEventListener('paste', async (e) => {
+                // 如果点击了粘贴区域，则处理
+                if (e.target === pasteArea) {
+                    e.preventDefault();
+
+                    // 尝试从事件中获取HTML
+                    if (e.clipboardData && e.clipboardData.types.includes('text/html')) {
+                        const html = e.clipboardData.getData('text/html');
+
+                        // 保存原始HTML
+                        originalHtml = html;
+
+                        // 显示在预览区域
+                        preview.innerHTML = html;
+
+                        // 激活按钮
+                        downloadBtn.disabled = false;
+                        copyHtmlBtn.disabled = false;
+
+                        // 显示成功状态
+                        showStatus('富文本提取成功！已保留所有格式和图片', 'success');
+
+                        // 高亮显示粘贴区域
+                        pasteArea.classList.add('active');
+                    } else {
+                        showStatus('剪贴板中未找到HTML格式内容', 'error');
+                    }
+                }
+            });
+
+            // 下载HTML文件
+            downloadBtn.addEventListener('click', () => {
+                if (!originalHtml) return;
+
+                // 创建完整的HTML文档
+                const fullHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提取的富文本内容</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        .content-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.08);
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background-color: #f1f5fd;
+            font-weight: 600;
+        }
+        tr:hover {
+            background-color: #f8fbff;
+        }
+        blockquote {
+            border-left: 4px solid #4361ee;
+            padding: 10px 20px;
+            margin: 20px 0;
+            background: #f1f5fd;
+            border-radius: 0 8px 8px 0;
+        }
+        code {
+            background: #f1f5fd;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-container">
+        ${originalHtml}
+    </div>
+</body>
+</html>`;
+
+                // 创建下载
+                const blob = new Blob([fullHtml], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = '完整富文本内容.html';
+                document.body.appendChild(a);
+                a.click();
+
+                // 清理
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+
+            // 复制HTML代码
+            copyHtmlBtn.addEventListener('click', async () => {
+                if (!originalHtml) return;
+
+                try {
+                    await navigator.clipboard.writeText(originalHtml);
+                    showStatus('HTML代码已复制到剪贴板', 'success');
+                } catch (err) {
+                    console.error('复制失败:', err);
+                    showStatus('复制失败，请手动复制', 'error');
+                }
+            });
+
+            // 清空内容
+            clearBtn.addEventListener('click', () => {
+                originalHtml = '';
+                preview.innerHTML = '<p style="text-align: center; padding: 50px 20px; color: #6c757d;">提取的富文本内容将在此处显示</p>';
+                downloadBtn.disabled = true;
+                copyHtmlBtn.disabled = true;
+                pasteStatus.classList.add('hidden');
+                pasteArea.classList.remove('active');
+            });
+
+            // 显示状态消息
+            function showStatus(message, type) {
+                pasteStatus.textContent = message;
+                pasteStatus.className = 'status';
+                pasteStatus.classList.add(type);
+                pasteStatus.classList.remove('hidden');
+
+                // 5秒后隐藏
+                setTimeout(() => {
+                    pasteStatus.classList.add('hidden');
+                }, 5000);
+            }
+        });
+    </script>
+</body>
+
+</html>
