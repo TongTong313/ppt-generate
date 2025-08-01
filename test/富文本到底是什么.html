@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>富文本原始代码提取器</title>
+    <style>
+        :root {
+            --primary: #1a237e;
+            --primary-light: #534bae;
+            --secondary: #00bcd4;
+            --dark: #212121;
+            --light: #f5f5f5;
+            --gray: #9e9e9e;
+            --success: #4caf50;
+            --error: #f44336;
+            --code-bg: #263238;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--light);
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: rgba(33, 33, 33, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        header {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 30px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            transform: rotate(30deg);
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            position: relative;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 800px;
+            position: relative;
+        }
+
+        .content-area {
+            display: flex;
+            min-height: 500px;
+            padding: 0;
+        }
+
+        .input-section {
+            flex: 1;
+            padding: 30px;
+            background: rgba(38, 50, 56, 0.5);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .output-section {
+            flex: 1;
+            padding: 30px;
+            background: rgba(26, 35, 46, 0.7);
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            color: var(--secondary);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--secondary);
+        }
+
+        .input-container {
+            height: 350px;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 30px;
+            background: rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .input-container.active {
+            border-color: var(--secondary);
+            background: rgba(0, 188, 212, 0.05);
+        }
+
+        .input-container:hover {
+            border-color: var(--secondary);
+        }
+
+        .paste-icon {
+            width: 80px;
+            height: 80px;
+            fill: rgba(255, 255, 255, 0.3);
+            margin-bottom: 20px;
+            transition: fill 0.3s;
+        }
+
+        .input-container:hover .paste-icon {
+            fill: var(--secondary);
+        }
+
+        .code-container {
+            height: 350px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: auto;
+            padding: 20px;
+            background: var(--code-bg);
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        pre {
+            margin: 0;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #e0e0e0;
+            overflow: auto;
+            height: 100%;
+        }
+
+        code {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 15px;
+            padding: 30px;
+            background: rgba(33, 33, 33, 0.9);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(26, 35, 126, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(26, 35, 126, 0.6);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(90deg, var(--secondary) 0%, #00acc1 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(0, 188, 212, 0.4);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 188, 212, 0.6);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--secondary);
+            color: var(--secondary);
+        }
+
+        .btn-outline:hover {
+            background: rgba(0, 188, 212, 0.1);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status.success {
+            background: rgba(76, 175, 80, 0.15);
+            color: #a5d6a7;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+            display: block;
+        }
+
+        .status.error {
+            background: rgba(244, 67, 54, 0.15);
+            color: #ffab91;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            display: block;
+        }
+
+        .instructions {
+            background: rgba(0, 188, 212, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: var(--secondary);
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        .line-numbers {
+            position: absolute;
+            left: 0;
+            top: 0;
+            padding: 20px 10px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            color: #78909c;
+            text-align: right;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .code-content {
+            padding-left: 40px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #6c757d;
+            font-size: 0.95rem;
+            background: var(--dark);
+            color: white;
+        }
+
+        @media (max-width: 900px) {
+            .content-area {
+                flex-direction: column;
+            }
+
+            .input-section,
+            .output-section {
+                width: 100%;
+            }
+
+            .input-section {
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>富文本原始代码提取器</h1>
+            <p class="subtitle">将粘贴的富文本内容以原始HTML代码形式展示 - 不做任何转换</p>
+        </header>
+
+        <div class="content-area">
+            <div class="input-section">
+                <h3 class="section-title">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19M10,18V14H11V11.5C11,10.4 10.1,9.5 9,9.5H8V8H11.5V11.5H13V9.5C13,8.4 12.1,7.5 11,7.5H7C5.9,7.5 5,8.4 5,9.5V14.5H8V16.5H5V18H10M17,12H15.5V10.5H13.5V12H12V15H13.5V13.5H15.5V15H17V12Z" />
+                    </svg>
+                    粘贴区域
+                </h3>
+
+                <div class="input-container" id="pasteArea">
+                    <svg class="paste-icon" viewBox="0 0 24 24">
+                        <path
+                            d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z" />
+                    </svg>
+                    <h3>点击此处粘贴富文本内容</h3>
+                    <p>我们将提取原始HTML代码，不做任何转换</p>
+                    <div class="status hidden" id="pasteStatus"></div>
+                </div>
+
+                <div class="instructions">
+                    <h3>使用说明：</h3>
+                    <ul>
+                        <li>在网页中复制您需要的富文本内容</li>
+                        <li>点击左侧区域或按Ctrl+V粘贴</li>
+                        <li>工具将直接显示原始HTML代码</li>
+                        <li>使用下方按钮复制代码或清空内容</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <h3 class="section-title">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" />
+                    </svg>
+                    原始HTML代码
+                </h3>
+
+                <div class="code-container">
+                    <div class="line-numbers" id="lineNumbers"></div>
+                    <pre><code class="code-content" id="codeOutput">// 粘贴富文本后，原始HTML代码将显示在这里
+// 无转换 - 无修改 - 纯原始代码</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn btn-primary" id="copyBtn" disabled>
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd"
+                        d="M10 1.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-1Zm-5 0A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1A1.5 1.5 0 0 1 9.5 4h-3A1.5 1.5 0 0 1 5 2.5v-1Zm-2 0h1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V3.5a1 1 0 0 0-1-1h-1v-1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Z" />
+                </svg>
+                复制HTML代码
+            </button>
+
+            <button class="btn btn-secondary" id="downloadBtn" disabled>
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+                    <path
+                        d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
+                </svg>
+                下载HTML文件
+            </button>
+
+            <button class="btn btn-outline" id="clearBtn">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                        d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                    <path fill-rule="evenodd"
+                        d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                </svg>
+                清空内容
+            </button>
+        </div>
+        <footer>
+            <p>聚智智能体平台团队 &copy; 2025 | 分析富文本是什么 | 支持现代浏览器</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const pasteArea = document.getElementById('pasteArea');
+            const codeOutput = document.getElementById('codeOutput');
+            const copyBtn = document.getElementById('copyBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const pasteStatus = document.getElementById('pasteStatus');
+            const lineNumbers = document.getElementById('lineNumbers');
+
+            let originalHtml = '';
+
+            // 处理粘贴事件
+            pasteArea.addEventListener('click', async () => {
+                try {
+                    // 请求剪贴板访问权限
+                    const permission = await navigator.permissions.query({
+                        name: 'clipboard-read'
+                    });
+
+                    if (permission.state === 'denied') {
+                        showStatus('需要剪贴板访问权限，请允许权限后重试', 'error');
+                        return;
+                    }
+
+                    // 获取剪贴板中的HTML内容
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const clipboardItem of clipboardItems) {
+                        for (const type of clipboardItem.types) {
+                            if (type === 'text/html') {
+                                const blob = await clipboardItem.getType(type);
+                                const html = await blob.text();
+
+                                // 保存原始HTML
+                                originalHtml = html;
+
+                                // 显示原始代码
+                                codeOutput.textContent = html;
+
+                                // 更新行号
+                                updateLineNumbers(html);
+
+                                // 激活按钮
+                                copyBtn.disabled = false;
+                                downloadBtn.disabled = false;
+
+                                // 显示成功状态
+                                showStatus('富文本原始代码已提取', 'success');
+
+                                // 高亮显示粘贴区域
+                                pasteArea.classList.add('active');
+
+                                return;
+                            }
+                        }
+                    }
+
+                    showStatus('剪贴板中未找到HTML格式内容', 'error');
+                } catch (err) {
+                    console.error('粘贴失败:', err);
+                    showStatus(`错误: ${err.message}`, 'error');
+                }
+            });
+
+            // 监听全局粘贴事件
+            document.addEventListener('paste', async (e) => {
+                // 如果点击了粘贴区域，则处理
+                if (e.target === pasteArea) {
+                    e.preventDefault();
+
+                    // 尝试从事件中获取HTML
+                    if (e.clipboardData && e.clipboardData.types.includes('text/html')) {
+                        const html = e.clipboardData.getData('text/html');
+
+                        // 保存原始HTML
+                        originalHtml = html;
+
+                        // 显示原始代码
+                        codeOutput.textContent = html;
+
+                        // 更新行号
+                        updateLineNumbers(html);
+
+                        // 激活按钮
+                        copyBtn.disabled = false;
+                        downloadBtn.disabled = false;
+
+                        // 显示成功状态
+                        showStatus('富文本原始代码已提取', 'success');
+
+                        // 高亮显示粘贴区域
+                        pasteArea.classList.add('active');
+                    } else {
+                        showStatus('剪贴板中未找到HTML格式内容', 'error');
+                    }
+                }
+            });
+
+            // 复制HTML代码
+            copyBtn.addEventListener('click', async () => {
+                if (!originalHtml) return;
+
+                try {
+                    await navigator.clipboard.writeText(originalHtml);
+                    showStatus('HTML代码已复制到剪贴板', 'success');
+                } catch (err) {
+                    console.error('复制失败:', err);
+                    showStatus('复制失败，请手动复制', 'error');
+                }
+            });
+
+            // 下载HTML文件
+            downloadBtn.addEventListener('click', () => {
+                if (!originalHtml) return;
+
+                // 创建下载
+                const blob = new Blob([originalHtml], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = '原始富文本代码.html';
+                document.body.appendChild(a);
+                a.click();
+
+                // 清理
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+
+            // 清空内容
+            clearBtn.addEventListener('click', () => {
+                originalHtml = '';
+                codeOutput.textContent = '// 粘贴富文本后，原始HTML代码将显示在这里\n// 无转换 - 无修改 - 纯原始代码';
+                copyBtn.disabled = true;
+                downloadBtn.disabled = true;
+                pasteStatus.classList.add('hidden');
+                pasteArea.classList.remove('active');
+                lineNumbers.innerHTML = '';
+            });
+
+            // 更新行号
+            function updateLineNumbers(html) {
+                const lines = html.split('\n').length;
+                let numbers = '';
+                for (let i = 1; i <= lines; i++) {
+                    numbers += i + '<br>';
+                }
+                lineNumbers.innerHTML = numbers;
+            }
+
+            // 显示状态消息
+            function showStatus(message, type) {
+                pasteStatus.textContent = message;
+                pasteStatus.className = 'status';
+                pasteStatus.classList.add(type);
+                pasteStatus.classList.remove('hidden');
+
+                // 5秒后隐藏
+                setTimeout(() => {
+                    pasteStatus.classList.add('hidden');
+                }, 5000);
+            }
+        });
+    </script>
+</body>
+
+</html>
