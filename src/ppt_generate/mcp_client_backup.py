@@ -10,9 +10,9 @@ class MCPClient:
     """MCP Client for interacting with an MCP Streamable HTTP server"""
 
     def __init__(
-            self,
-            api_key: str = os.getenv("DASHSCOPE_API_KEY", ""),
-            base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        self,
+        api_key: str = os.getenv("DASHSCOPE_API_KEY", ""),
+        base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
     ):
         # 初始化会话和客户端对象
         self.session: Optional[ClientSession] = None
@@ -24,7 +24,7 @@ class MCPClient:
     ):
         """
         连接到运行 HTTP Streamable 传输的 MCP 服务器
-        
+
         Args:
             server_url: MCP 服务器的 URL 地址
         """
@@ -54,14 +54,17 @@ class MCPClient:
 
         response = await self.session.list_tools()
         # print(response)
-        available_tools = [{
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.inputSchema,
+        available_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.inputSchema,
+                },
             }
-        } for tool in response.tools]
+            for tool in response.tools
+        ]
 
         # 和大模型对话，先不考虑流式
         response = await self.llm.chat.completions.create(
@@ -88,11 +91,13 @@ class MCPClient:
                 result = await self.session.call_tool(tool_name, tool_args)
                 print(result.content[0])
 
-                messages.append({
-                    "role": "tool",
-                    "content": result.content,
-                    "tool_call_id": tool_call_id
-                })
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": result.content,
+                        "tool_call_id": tool_call_id,
+                    }
+                )
 
         # 有工具调用还要再让大模型输出一遍
         response = await self.llm.chat.completions.create(

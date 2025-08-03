@@ -2,28 +2,33 @@
 
 import os
 import logging
-import re
-import asyncio
 from typing import Optional, Dict, Any
 from pathlib import Path
 import PyPDF2
-import pdfplumber
-import sympy
 from sympy import symbols, simplify, latex
 from datetime import datetime
 
 
-async def pdf_to_text(pdf_path: str,
-                      start_page: Optional[int] = None,
-                      end_page: Optional[int] = None) -> Dict[str, Any]:
+async def web_search(query: str) -> str:
+    """
+    执行网络搜索并返回结果
+    """
+    # 这里应该是实际的网络搜索逻辑
+    # 为了示例，我们只是返回一个简单的字符串
+    return f"搜索结果: {query}"
+
+
+async def pdf_to_text(
+    pdf_path: str, start_page: Optional[int] = None, end_page: Optional[int] = None
+) -> Dict[str, Any]:
     """
     将PDF文件转换为文本
-    
+
     Args:
         pdf_path (str): PDF文件的路径
         start_page (Optional[int]): 开始页码（从1开始，包含）
         end_page (Optional[int]): 结束页码（包含）
-    
+
     Returns:
         Dict[str, Any]: 包含转换结果的字典
         {
@@ -42,11 +47,11 @@ async def pdf_to_text(pdf_path: str,
                 "text": "",
                 "total_pages": 0,
                 "pages_processed": 0,
-                "error": f"PDF文件不存在: {pdf_path}"
+                "error": f"PDF文件不存在: {pdf_path}",
             }
 
         # 打开PDF文件
-        with open(pdf_path, 'rb') as file:
+        with open(pdf_path, "rb") as file:
             pdf_reader = PyPDF2.PdfReader(file)
             total_pages = len(pdf_reader.pages)
 
@@ -63,8 +68,7 @@ async def pdf_to_text(pdf_path: str,
                     "text": "",
                     "total_pages": total_pages,
                     "pages_processed": 0,
-                    "error":
-                    f"页码范围无效: {start_page}-{end_page}，总页数: {total_pages}"
+                    "error": f"页码范围无效: {start_page}-{end_page}，总页数: {total_pages}",
                 }
 
             # 提取文本
@@ -77,7 +81,8 @@ async def pdf_to_text(pdf_path: str,
                     page_text = page.extract_text()
                     if page_text.strip():  # 只添加非空页面
                         extracted_text.append(
-                            f"=== 第 {page_num + 1} 页 ===\n{page_text}")
+                            f"=== 第 {page_num + 1} 页 ===\n{page_text}"
+                        )
                         pages_processed += 1
                 except Exception as e:
                     logging.warning(f"提取第 {page_num + 1} 页时出错: {str(e)}")
@@ -90,7 +95,7 @@ async def pdf_to_text(pdf_path: str,
                 "text": full_text,
                 "total_pages": total_pages,
                 "pages_processed": pages_processed,
-                "error": None
+                "error": None,
             }
 
     except Exception as e:
@@ -99,7 +104,7 @@ async def pdf_to_text(pdf_path: str,
             "text": "",
             "total_pages": 0,
             "pages_processed": 0,
-            "error": f"处理PDF文件时出错: {str(e)}"
+            "error": f"处理PDF文件时出错: {str(e)}",
         }
 
 

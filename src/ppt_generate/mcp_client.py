@@ -1,6 +1,6 @@
 from mcp.client.streamable_http import streamablehttp_client
 from mcp import ClientSession
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Literal
 from openai import AsyncOpenAI
 import os
 import json
@@ -67,7 +67,15 @@ class ServerConnection:
         return response.tools
 
     async def call_tool(self, tool_name: str, tool_args: dict) -> Any:
-        """调用该服务器的工具"""
+        """调用该服务器的工具
+
+        Args:
+            tool_name (str): 工具名称
+            tool_args (dict): 工具参数
+
+        Returns:
+            Any: 工具调用结果
+        """
         if not self.is_connected or not self.session:
             raise RuntimeError(f"服务器 {self.name} 未连接")
 
@@ -75,17 +83,25 @@ class ServerConnection:
 
 
 class MCPClient:
-    """支持多个MCP服务器的客户端"""
+    """MCP客户端v2版本：支持多个MCP服务器"""
 
     def __init__(
         self,
         api_key: str = os.getenv("DASHSCOPE_API_KEY", ""),
         base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        model: str = "qwen-plus",
+        tool_choice: Literal["auto", "required", "none"] = "auto",
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
     ):
         self.servers: Dict[str, ServerConnection] = {}
         self.llm = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.model = model
+        self.tool_choice = tool_choice
+        self.temperature = temperature
+        self.max_tokens = max_tokens
 
-    def add_server(self, name: str, url: str):
+    def add_server(self, name: str, url: str) -> None:
         """添加一个MCP服务器"""
         if name in self.servers:
             print(f"⚠️ 服务器 {name} 已存在，将被替换")
@@ -93,13 +109,25 @@ class MCPClient:
         self.servers[name] = ServerConnection(name, url)
         print(f"📝 已添加服务器: {name} ({url})")
 
-    def remove_server(self, name: str):
+    def remove_server(self, name: str) -> None:
         """移除一个MCP服务器"""
         if name in self.servers:
             del self.servers[name]
             print(f"🗑️ 已移除服务器: {name}")
         else:
             print(f"⚠️ 服务器 {name} 不存在")
+
+    async def connect_server(self, name: str):
+        """连接指定的服务器"""
+        if name not in self.servers:
+            print(f"⚠️ 服务器 {name} 不存在")
+            return False
+
+        try:
+            await self.servers[name].connect()
+            return True
+        except Exception:
+            return False
 
     async def connect_all_servers(self):
         """连接所有已添加的服务器"""
@@ -118,18 +146,6 @@ class MCPClient:
             1 for server in self.servers.values() if server.is_connected
         )
         print(f"📊 连接完成: {connected_count}/{len(self.servers)} 个服务器连接成功")
-
-    async def connect_server(self, name: str):
-        """连接指定的服务器"""
-        if name not in self.servers:
-            print(f"⚠️ 服务器 {name} 不存在")
-            return False
-
-        try:
-            await self.servers[name].connect()
-            return True
-        except Exception:
-            return False
 
     async def disconnect_server(self, name: str):
         """断开指定服务器的连接"""
@@ -172,7 +188,15 @@ class MCPClient:
     def _find_tool_server(
         self, tool_name: str, all_tools: Dict[str, List[Any]]
     ) -> Optional[str]:
-        """根据工具名称找到对应的服务器"""
+        """根据工具名称找到对应的服务器
+
+        Args:
+            tool_name (str): 工具名称
+            all_tools (Dict[str, List[Any]]): 所有服务器的工具列表
+
+        Returns:
+            Optional[str]: 找到的服务器名称，未找到返回None
+        """
         for server_name, tools in all_tools.items():
             for tool in tools:
                 if tool.name == tool_name:
@@ -185,6 +209,7 @@ class MCPClient:
 
         # 获取所有服务器的工具
         all_tools_by_server = await self.get_all_tools()
+        # print(all_tools_by_server)
 
         # 合并所有工具为OpenAI格式
         available_tools = []
@@ -202,14 +227,16 @@ class MCPClient:
                 )
 
         if not available_tools:
-            return "⚠️ 没有可用的工具，请确保至少有一个服务器已连接"
+            print("⚠️ 没有可用的工具可正常使用，无法触发工具调用过程")
 
         print(f"🔧 可用工具数量: {len(available_tools)}")
 
         # 第一次调用大模型
         response = await self.llm.chat.completions.create(
-            model="qwen-plus",
-            max_tokens=1000,
+            model=self.model,
+            tool_choice=self.tool_choice,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
             messages=messages,
             tools=available_tools,
         )
@@ -249,7 +276,7 @@ class MCPClient:
                         messages.append(
                             {
                                 "role": "tool",
-                                "content": [{"type": "text", "text": error_msg}],
+                                "content": error_msg,
                                 "tool_call_id": tool_call_id,
                             }
                         )
@@ -260,15 +287,17 @@ class MCPClient:
                     messages.append(
                         {
                             "role": "tool",
-                            "content": [{"type": "text", "text": error_msg}],
+                            "content": error_msg,
                             "tool_call_id": tool_call_id,
                         }
                     )
 
         # 第二次调用大模型获取最终回复
         response = await self.llm.chat.completions.create(
-            model="qwen-plus",
-            max_tokens=1000,
+            model=self.model,
+            tool_choice=self.tool_choice,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
             messages=messages,
             tools=available_tools,
         )
@@ -330,39 +359,10 @@ class MCPClient:
             if tools:
                 print(f"\n📡 服务器: {server_name}")
                 for tool in tools:
-                    print(f"  • {tool.name}: {tool.description}")
+                    print(f"  • {tool.name}: {tool.description.strip()}")
             else:
                 print(f"\n📡 服务器: {server_name} (无可用工具或未连接)")
 
     async def cleanup(self):
         """清理所有连接"""
         await self.disconnect_all_servers()
-
-
-# 使用示例
-async def example_usage():
-    """使用示例"""
-    client = MultiMCPClient()
-
-    # 添加多个服务器
-    client.add_server("weather", "http://localhost:8001")
-    client.add_server("database", "http://localhost:8002")
-    client.add_server("files", "http://localhost:8003")
-
-    try:
-        # 连接所有服务器
-        await client.connect_all_servers()
-
-        # 显示状态
-        client.show_status()
-
-        # 开始聊天循环
-        await client.chat_loop()
-
-    finally:
-        # 清理连接
-        await client.cleanup()
-
-
-if __name__ == "__main__":
-    asyncio.run(example_usage())
