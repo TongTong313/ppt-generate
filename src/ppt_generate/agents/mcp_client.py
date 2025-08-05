@@ -83,23 +83,9 @@ class ServerConnection:
 
 
 class MCPClient:
-    """MCP客户端v2版本：支持多个MCP服务器"""
-
-    def __init__(
-        self,
-        api_key: str = os.getenv("DASHSCOPE_API_KEY", ""),
-        base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        model: str = "qwen-plus",
-        tool_choice: Literal["auto", "required", "none"] = "auto",
-        temperature: float = 0.7,
-        max_tokens: int = 1000,
-    ):
-        self.servers: Dict[str, ServerConnection] = {}
-        self.llm = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        self.model = model
-        self.tool_choice = tool_choice
-        self.temperature = temperature
-        self.max_tokens = max_tokens
+    """MCP客户端v2版本：支持多个MCP服务器
+    智能体需要集成这个类来写代码，必须实现run_agent方法
+    """
 
     def add_server(self, name: str, url: str) -> None:
         """添加一个MCP服务器"""
@@ -203,108 +189,7 @@ class MCPClient:
                     return server_name
         return None
 
-    async def process_query(self, query: str) -> str:
-        """处理查询，使用所有可用的工具"""
-        messages = [{"role": "user", "content": query}]
-
-        # 获取所有服务器的工具
-        all_tools_by_server = await self.get_all_tools()
-        # print(all_tools_by_server)
-
-        # 合并所有工具为OpenAI格式
-        available_tools = []
-        for server_name, tools in all_tools_by_server.items():
-            for tool in tools:
-                available_tools.append(
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": tool.name,
-                            "description": f"[{server_name}] {tool.description}",
-                            "parameters": tool.inputSchema,
-                        },
-                    }
-                )
-
-        if not available_tools:
-            print("⚠️ 没有可用的工具可正常使用，无法触发工具调用过程")
-
-        print(f"🔧 可用工具数量: {len(available_tools)}")
-
-        # 第一次调用大模型
-        response = await self.llm.chat.completions.create(
-            model=self.model,
-            tool_choice=self.tool_choice,
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            messages=messages,
-            tools=available_tools,
-        )
-
-        messages.append(response.choices[0].message)
-
-        # 处理工具调用
-        if response.choices[0].message.tool_calls:
-            for tool_call in response.choices[0].message.tool_calls:
-                tool_name = tool_call.function.name
-                tool_args = json.loads(tool_call.function.arguments)
-                tool_call_id = tool_call.id
-
-                print(f"🔧 工具调用: {tool_name}, 参数: {tool_args}")
-
-                # 找到工具对应的服务器
-                server_name = self._find_tool_server(tool_name, all_tools_by_server)
-
-                if server_name and server_name in self.servers:
-                    try:
-                        result = await self.servers[server_name].call_tool(
-                            tool_name, tool_args
-                        )
-                        print(f"✅ 工具 {tool_name} 在服务器 {server_name} 上执行成功")
-
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": result.content,
-                                "tool_call_id": tool_call_id,
-                            }
-                        )
-                    except Exception as e:
-                        error_msg = f"工具 {tool_name} 在服务器 {server_name} 上执行失败: {str(e)}"
-                        print(f"❌ {error_msg}")
-
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": error_msg,
-                                "tool_call_id": tool_call_id,
-                            }
-                        )
-                else:
-                    error_msg = f"找不到工具 {tool_name} 对应的服务器"
-                    print(f"❌ {error_msg}")
-
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": error_msg,
-                            "tool_call_id": tool_call_id,
-                        }
-                    )
-
-        # 第二次调用大模型获取最终回复
-        response = await self.llm.chat.completions.create(
-            model=self.model,
-            tool_choice=self.tool_choice,
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            messages=messages,
-            tools=available_tools,
-        )
-
-        return response.choices[0].message.content
-
-    def show_status(self):
+    def show_status(self) -> None:
         """显示所有服务器的连接状态"""
         print("\n📊 服务器连接状态:")
         print("-" * 50)
@@ -322,33 +207,7 @@ class MCPClient:
         )
         print(f"\n总计: {connected_count}/{len(self.servers)} 个服务器已连接")
 
-    async def chat_loop(self):
-        """交互式聊天循环"""
-        print("\n🚀 多服务器MCP客户端启动！")
-        print("输入 'quit' 或 '再见' 退出")
-        print("输入 'status' 查看服务器状态")
-        print("输入 'tools' 查看可用工具")
-
-        while True:
-            try:
-                query = input("\n请输入问题: ").strip()
-
-                if query.lower() == "quit" or query == "再见":
-                    break
-                elif query.lower() == "status":
-                    self.show_status()
-                    continue
-                elif query.lower() == "tools":
-                    await self._show_tools()
-                    continue
-
-                response = await self.process_query(query)
-                print(f"\n🤖 回复: {response}")
-
-            except Exception as e:
-                print(f"\n❌ 错误: {str(e)}")
-
-    async def _show_tools(self):
+    async def _show_tools(self) -> None:
         """显示所有可用工具"""
         print("\n🔧 可用工具列表:")
         print("-" * 50)
@@ -363,6 +222,137 @@ class MCPClient:
             else:
                 print(f"\n📡 服务器: {server_name} (无可用工具或未连接)")
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """清理所有连接"""
         await self.disconnect_all_servers()
+
+    async def run_agent(self) -> None:
+        """智能体运行逻辑，必须实现"""
+        raise NotImplementedError("智能体必须实现run_agent方法")
+
+    # async def process_query(self, query: str) -> str:
+    #     """处理查询，使用所有可用的工具"""
+    #     messages = [{"role": "user", "content": query}]
+
+    #     # 获取所有服务器的工具
+    #     all_tools_by_server = await self.get_all_tools()
+    #     # print(all_tools_by_server)
+
+    #     # 合并所有工具为OpenAI格式
+    #     available_tools = []
+    #     for server_name, tools in all_tools_by_server.items():
+    #         for tool in tools:
+    #             available_tools.append(
+    #                 {
+    #                     "type": "function",
+    #                     "function": {
+    #                         "name": tool.name,
+    #                         "description": f"[{server_name}] {tool.description}",
+    #                         "parameters": tool.inputSchema,
+    #                     },
+    #                 }
+    #             )
+
+    #     if not available_tools:
+    #         print("⚠️ 没有可用的工具可正常使用，无法触发工具调用过程")
+
+    #     print(f"🔧 可用工具数量: {len(available_tools)}")
+
+    #     # 第一次调用大模型
+    #     response = await self.llm.chat.completions.create(
+    #         model=self.model,
+    #         tool_choice=self.tool_choice,
+    #         max_tokens=self.max_tokens,
+    #         temperature=self.temperature,
+    #         messages=messages,
+    #         tools=available_tools,
+    #     )
+
+    #     messages.append(response.choices[0].message)
+
+    #     # 处理工具调用
+    #     if response.choices[0].message.tool_calls:
+    #         for tool_call in response.choices[0].message.tool_calls:
+    #             tool_name = tool_call.function.name
+    #             tool_args = json.loads(tool_call.function.arguments)
+    #             tool_call_id = tool_call.id
+
+    #             print(f"🔧 工具调用: {tool_name}, 参数: {tool_args}")
+
+    #             # 找到工具对应的服务器
+    #             server_name = self._find_tool_server(tool_name, all_tools_by_server)
+
+    #             if server_name and server_name in self.servers:
+    #                 try:
+    #                     result = await self.servers[server_name].call_tool(
+    #                         tool_name, tool_args
+    #                     )
+    #                     print(f"✅ 工具 {tool_name} 在服务器 {server_name} 上执行成功")
+
+    #                     messages.append(
+    #                         {
+    #                             "role": "tool",
+    #                             "content": result.content,
+    #                             "tool_call_id": tool_call_id,
+    #                         }
+    #                     )
+    #                 except Exception as e:
+    #                     error_msg = f"工具 {tool_name} 在服务器 {server_name} 上执行失败: {str(e)}"
+    #                     print(f"❌ {error_msg}")
+
+    #                     messages.append(
+    #                         {
+    #                             "role": "tool",
+    #                             "content": error_msg,
+    #                             "tool_call_id": tool_call_id,
+    #                         }
+    #                     )
+    #             else:
+    #                 error_msg = f"找不到工具 {tool_name} 对应的服务器"
+    #                 print(f"❌ {error_msg}")
+
+    #                 messages.append(
+    #                     {
+    #                         "role": "tool",
+    #                         "content": error_msg,
+    #                         "tool_call_id": tool_call_id,
+    #                     }
+    #                 )
+
+    #     # 第二次调用大模型获取最终回复
+    #     response = await self.llm.chat.completions.create(
+    #         model=self.model,
+    #         tool_choice=self.tool_choice,
+    #         max_tokens=self.max_tokens,
+    #         temperature=self.temperature,
+    #         messages=messages,
+    #         tools=available_tools,
+    #     )
+
+    #     return response.choices[0].message.content
+
+    # async def chat_loop(self):
+    #     """交互式聊天循环"""
+    #     print("\n🚀 多服务器MCP客户端启动！")
+    #     print("输入 'quit' 或 '再见' 退出")
+    #     print("输入 'status' 查看服务器状态")
+    #     print("输入 'tools' 查看可用工具")
+
+    #     while True:
+    #         try:
+    #             query = input("\n请输入问题: ").strip()
+
+    #             if query.lower() == "quit" or query == "再见":
+    #                 break
+    #             elif query.lower() == "status":
+    #                 self.show_status()
+    #                 continue
+    #             elif query.lower() == "tools":
+    #                 await self._show_tools()
+    #                 continue
+
+    #             response = await self.process_query(query)
+    #             print(f"\n🤖 回复: {response}")
+
+    #         except Exception as e:
+    #             print(f"\n❌ 错误: {str(e)}")

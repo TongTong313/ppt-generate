@@ -1,7 +1,7 @@
 # 测试MCP客户端
 
 import asyncio
-from ppt_generate.mcp_client import MCPClient
+from ppt_generate.agents.mcp_client import MCPClient
 
 
 async def main():

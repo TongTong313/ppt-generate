@@ -1,11 +1,11 @@
 import asyncio
-from ppt_generate.tool.tool import pdf_to_text, get_current_time
-from ppt_generate.tool.mcp_server import MCPServer
+from ppt_generate.tools.tool import pdf_to_text, get_current_time
+from ppt_generate.tools.mcp_server import MCPServer
 
 
 import multiprocessing
-from ppt_generate.tool.tool import pdf_to_text, get_current_time
-from ppt_generate.tool.mcp_server import MCPServer
+from ppt_generate.tools.tool import pdf_to_text, get_current_time
+from ppt_generate.tools.mcp_server import MCPServer
 
 
 def run_server(funcs, port):
