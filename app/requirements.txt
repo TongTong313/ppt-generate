@@ -1,0 +1,18 @@
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+pydantic>=2.5.0
+aiofiles>=23.2.1
+python-multipart>=0.0.6
+
+# 文档处理依赖
+PyPDF2>=3.0.1
+python-docx>=1.1.0
+pandas>=2.1.0
+openpyxl>=3.1.2
+beautifulsoup4>=4.12.2
+lxml>=4.9.3
+
+# 可选依赖（根据需要安装）
+# python-pptx>=0.6.23  # 用于生成PPTX文件
+# reportlab>=4.0.7     # 用于生成PDF文件
