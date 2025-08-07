@@ -20,6 +20,7 @@ dependencies = [
     "python-pptx>=1.0.2",
     "sympy>=1.14.0",
     "weasyprint>=65.1",
+    "websockets>=15.0.1",
     "xhtml2pdf>=0.2.17",
 ]
 
