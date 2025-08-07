@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPT智能生成器</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-presentation"></i> PPT智能生成器</h1>
+                <p>基于AI的智能PPT内容生成工具</p>
+            </div>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="main-content">
+            <!-- 输入区域 -->
+            <section class="input-section">
+                <div class="input-card">
+                    <h2><i class="fas fa-edit"></i> 输入需求</h2>
+                    <div class="input-group">
+                        <label for="user-query">PPT主题需求：</label>
+                        <textarea id="user-query" placeholder="请输入您的PPT主题需求，例如：制作一个关于人工智能发展历程的PPT..." rows="4"></textarea>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="reference-content">参考内容：</label>
+                        <textarea id="reference-content" placeholder="请输入参考内容或粘贴相关文本资料..." rows="6"></textarea>
+                        <div class="file-upload">
+                            <input type="file" id="file-input" accept=".txt,.md,.doc,.docx" hidden>
+                            <button type="button" onclick="document.getElementById('file-input').click()">
+                                <i class="fas fa-upload"></i> 上传文本文件
+                            </button>
+                            <span id="file-name"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="generate-outline-btn" class="btn btn-primary">
+                            <i class="fas fa-list"></i> 生成PPT大纲
+                        </button>
+                        <button id="generate-content-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-file-powerpoint"></i> 生成PPT内容
+                        </button>
+                        <button id="clear-btn" class="btn btn-outline">
+                            <i class="fas fa-trash"></i> 清空
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 结果展示区域 -->
+            <section class="results-section">
+                <!-- PPT制作空间 -->
+                <div class="result-card" id="workspace-area">
+                    <div class="result-header">
+                        <h3 id="workspace-title"><i class="fas fa-magic"></i> PPT制作空间</h3>
+                        <div class="header-controls">
+                             <div class="status-indicator" id="workspace-status-container" style="display: none;">
+                                <span class="status" id="workspace-status">准备中</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="result-content">
+                        <!-- 默认欢迎界面 -->
+                        <div class="workspace-content" id="workspace-welcome">
+                            <div class="workspace-icon">
+                                <i class="fas fa-presentation"></i>
+                            </div>
+                            <h4>欢迎使用PPT智能生成器</h4>
+                            <p>请在左侧输入您的PPT需求，AI将为您：</p>
+                            <ul>
+                                <li><i class="fas fa-check"></i> 智能分析需求并生成大纲</li>
+                                <li><i class="fas fa-check"></i> 创建详细的页面内容</li>
+                                <li><i class="fas fa-check"></i> 提供专业的布局建议</li>
+                            </ul>
+                            <div class="workspace-tip">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>提示：上传参考文档可以获得更精准的内容生成</span>
+                            </div>
+                        </div>
+                        
+                        <!-- AI思考过程 -->
+                        <div class="workspace-process" id="workspace-thinking" style="display: none;">
+                            <div class="process-header">
+                                <i class="fas fa-brain"></i>
+                                <span>AI正在思考...</span>
+                            </div>
+                            <div class="process-content" id="workspace-thinking-content"></div>
+                        </div>
+                        
+                        <!-- AI生成过程 -->
+                        <div class="workspace-process" id="workspace-generating" style="display: none;">
+                            <div class="process-header">
+                                <i class="fas fa-cogs"></i>
+                                <span id="workspace-generating-title">AI正在生成...</span>
+                            </div>
+                            <div class="process-content" id="workspace-generating-content"></div>
+                        </div>
+                        
+                        <!-- 大纲结果展示 -->
+                        <div class="workspace-result" id="workspace-outline" style="display: none;">
+                            <div class="result-header">
+                                <h4><i class="fas fa-list-ul"></i> PPT大纲</h4>
+                                <div class="header-controls">
+                                    <button class="collapse-btn" onclick="toggleCollapse('workspace-outline')">
+                                        <i class="fas fa-chevron-up" id="workspace-outline-collapse-icon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="result-content" id="workspace-outline-content-wrapper">
+                                <div class="content-section" id="workspace-outline-content"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 页面内容结果展示 -->
+                        <div class="workspace-result" id="workspace-content" style="display: none;">
+                            <div class="result-header">
+                                <h4><i class="fas fa-file-alt"></i> PPT页面内容</h4>
+                                <div class="header-controls">
+                                    <button class="collapse-btn" onclick="toggleCollapse('workspace-content')">
+                                        <i class="fas fa-chevron-up" id="workspace-content-collapse-icon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="result-content" id="workspace-content-wrapper">
+                                <div class="content-section" id="workspace-page-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 加载动画 -->
+    <div class="loading-overlay" id="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>AI正在思考中...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
