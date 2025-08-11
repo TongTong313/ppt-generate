@@ -64,15 +64,10 @@ class PPTAgent(MCPClient):
         on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> None:
         messages = [
+            {"role": "system", "content": PPT_OUTLINE_PROMPT},
             {
-                "role": "system",
-                "content": PPT_OUTLINE_PROMPT
-            },
-            {
-                "role":
-                "user",
-                "content":
-                f"用户需求：{query}\n参考内容：{reference_content if reference_content else '无'}",
+                "role": "user",
+                "content": f"用户需求：{query}\n参考内容：{reference_content if reference_content else '无'}",
             },
         ]
         self.ppt_info["query"] = query
@@ -108,17 +103,21 @@ class PPTAgent(MCPClient):
 
             delta = chunk.choices[0].delta
             # 只收集思考内容
-            if (hasattr(delta, "reasoning_content")
-                    and delta.reasoning_content is not None):
+            if (
+                hasattr(delta, "reasoning_content")
+                and delta.reasoning_content is not None
+            ):
                 if not is_answering:
                     print(delta.reasoning_content, end="", flush=True)
                 reasoning_content += delta.reasoning_content
                 if on_event and not is_answering and delta.reasoning_content:
-                    on_event({
-                        "stage": "outline_think",
-                        "type": "token",
-                        "text": delta.reasoning_content,
-                    })
+                    on_event(
+                        {
+                            "stage": "outline_think",
+                            "type": "token",
+                            "text": delta.reasoning_content,
+                        }
+                    )
 
             # 收到content，开始进行回复
             if hasattr(delta, "content") and delta.content:
@@ -132,28 +131,35 @@ class PPTAgent(MCPClient):
                 print(delta.content, end="", flush=True)
                 answer_content += delta.content
                 if on_event:
-                    on_event({
-                        "stage": "outline_answer",
-                        "type": "token",
-                        "text": delta.content,
-                    })
+                    on_event(
+                        {
+                            "stage": "outline_answer",
+                            "type": "token",
+                            "text": delta.content,
+                        }
+                    )
 
         # print("\n</outline_answer>")
 
         # 从完整内容中提取大纲部分
-        outline_match = re.search(r"<outline>(.*?)</outline>", answer_content,
-                                  re.DOTALL)
+        outline_match = re.search(
+            r"<outline>(.*?)</outline>", answer_content, re.DOTALL
+        )
         if outline_match:
             self.ppt_info["outline"] = outline_match.group(1).strip()
             if on_event:
-                on_event({
-                    "stage": "outline_answer",
-                    "type": "end",
-                })
-                on_event({
-                    "stage": "outline_done",
-                    "outline": self.ppt_info["outline"],
-                })
+                on_event(
+                    {
+                        "stage": "outline_answer",
+                        "type": "end",
+                    }
+                )
+                on_event(
+                    {
+                        "stage": "outline_done",
+                        "outline": self.ppt_info["outline"],
+                    }
+                )
         else:
             raise ValueError("未能在输出中找到大纲内容，请检查模型输出格式是否正确")
 
@@ -176,16 +182,12 @@ class PPTAgent(MCPClient):
             raise ValueError("请先生成大纲")
         messages = [
             {
-                "role":
-                "system",
-                "content":
-                PPT_PAGE_CONTENT_PROMPT.format(query=self.ppt_info["query"]),
+                "role": "system",
+                "content": PPT_PAGE_CONTENT_PROMPT + "\n" + self.ppt_info["query"],
             },
             {
-                "role":
-                "user",
-                "content":
-                f"大纲内容：{outline}\n参考内容：{self.ppt_info['reference_content']}",
+                "role": "user",
+                "content": f"大纲内容：{outline}\n参考内容：{self.ppt_info['reference_content']}",
             },
         ]
 
@@ -219,17 +221,21 @@ class PPTAgent(MCPClient):
 
             delta = chunk.choices[0].delta
             # 只收集思考内容
-            if (hasattr(delta, "reasoning_content")
-                    and delta.reasoning_content is not None):
+            if (
+                hasattr(delta, "reasoning_content")
+                and delta.reasoning_content is not None
+            ):
                 if not is_answering:
                     print(delta.reasoning_content, end="", flush=True)
                 reasoning_content += delta.reasoning_content
                 if on_event and not is_answering and delta.reasoning_content:
-                    on_event({
-                        "stage": "content_think",
-                        "type": "token",
-                        "text": delta.reasoning_content,
-                    })
+                    on_event(
+                        {
+                            "stage": "content_think",
+                            "type": "token",
+                            "text": delta.reasoning_content,
+                        }
+                    )
 
             # 收到content，开始进行回复
             if hasattr(delta, "content") and delta.content:
@@ -243,11 +249,13 @@ class PPTAgent(MCPClient):
                 print(delta.content, end="", flush=True)
                 answer_content += delta.content
                 if on_event:
-                    on_event({
-                        "stage": "content_answer",
-                        "type": "token",
-                        "text": delta.content,
-                    })
+                    on_event(
+                        {
+                            "stage": "content_answer",
+                            "type": "token",
+                            "text": delta.content,
+                        }
+                    )
 
             # print("\n</content_answer>")
         # 反思过程
@@ -255,23 +263,27 @@ class PPTAgent(MCPClient):
             if on_event:
                 on_event({"stage": "rethinking_begin"})
             answer_content = await self._rethinking(
-                answer_content,
-                max_rethink_times=max_rethink_times,
-                on_event=on_event)
+                answer_content, max_rethink_times=max_rethink_times, on_event=on_event
+            )
 
         # 把通过<page>和</page>包裹的信息解耦出来，每一页一个内容放入self.ppt_info["pages"]中
-        page_content_match = re.findall(r"<page>(.*?)</page>", answer_content,
-                                        re.DOTALL)
+        page_content_match = re.findall(
+            r"<page>(.*?)</page>", answer_content, re.DOTALL
+        )
         self.ppt_info["pages"] = [page.strip() for page in page_content_match]
         if on_event:
-            on_event({
-                "stage": "content_answer",
-                "type": "end",
-            })
-            on_event({
-                "stage": "content_done",
-                "pages": self.ppt_info["pages"],
-            })
+            on_event(
+                {
+                    "stage": "content_answer",
+                    "type": "end",
+                }
+            )
+            on_event(
+                {
+                    "stage": "content_done",
+                    "pages": self.ppt_info["pages"],
+                }
+            )
 
     async def _rethinking(
         self,
@@ -301,10 +313,8 @@ class PPTAgent(MCPClient):
             # 1. 先反思给建议，每一轮rethink都重新生成message，防止上下文爆炸
             messages = [
                 {
-                    "role":
-                    "system",
-                    "content":
-                    PPT_PAGE_RETHINK_PROMPT.format(
+                    "role": "system",
+                    "content": PPT_PAGE_RETHINK_PROMPT.format(
                         query=self.ppt_info["query"],
                         outline=self.ppt_info["outline"],
                         reference_content=self.ppt_info["reference_content"],
@@ -333,11 +343,13 @@ class PPTAgent(MCPClient):
             # 加一个标签
             print("\n<rethinking_think>")
             if on_event:
-                on_event({
-                    "stage": "rethinking_think",
-                    "type": "start",
-                    "round": i + 1,
-                })
+                on_event(
+                    {
+                        "stage": "rethinking_think",
+                        "type": "start",
+                        "round": i + 1,
+                    }
+                )
 
             async for chunk in response:
                 if not chunk.choices:
@@ -347,18 +359,22 @@ class PPTAgent(MCPClient):
 
                 delta = chunk.choices[0].delta
                 # 只收集思考内容
-                if (hasattr(delta, "reasoning_content")
-                        and delta.reasoning_content is not None):
+                if (
+                    hasattr(delta, "reasoning_content")
+                    and delta.reasoning_content is not None
+                ):
                     if not is_answering:
                         print(delta.reasoning_content, end="", flush=True)
                     reasoning_content += delta.reasoning_content
                     if on_event and not is_answering and delta.reasoning_content:
-                        on_event({
-                            "stage": "rethinking_think",
-                            "type": "token",
-                            "text": delta.reasoning_content,
-                            "round": i + 1,
-                        })
+                        on_event(
+                            {
+                                "stage": "rethinking_think",
+                                "type": "token",
+                                "text": delta.reasoning_content,
+                                "round": i + 1,
+                            }
+                        )
 
                 if hasattr(delta, "content") and delta.content:
                     if not is_answering:
@@ -366,51 +382,60 @@ class PPTAgent(MCPClient):
                         # print("<rethinking_answer>")
                         is_answering = True
                         if on_event:
-                            on_event({
-                                "stage": "rethinking_think",
-                                "type": "end",
-                                "round": i + 1,
-                            })
-                            on_event({
-                                "stage": "rethinking_answer",
-                                "type": "start",
-                                "round": i + 1,
-                            })
+                            on_event(
+                                {
+                                    "stage": "rethinking_think",
+                                    "type": "end",
+                                    "round": i + 1,
+                                }
+                            )
+                            on_event(
+                                {
+                                    "stage": "rethinking_answer",
+                                    "type": "start",
+                                    "round": i + 1,
+                                }
+                            )
                     print(delta.content, end="", flush=True)
                     answer_content += delta.content
                     if on_event:
-                        on_event({
-                            "stage": "rethinking_answer",
-                            "type": "token",
-                            "text": delta.content,
-                            "round": i + 1,
-                        })
+                        on_event(
+                            {
+                                "stage": "rethinking_answer",
+                                "type": "token",
+                                "text": delta.content,
+                                "round": i + 1,
+                            }
+                        )
 
             # 判断输出有没有包含“检查通过”，有检查通过就跳出循环
             if "检查通过" in answer_content:
                 if on_event:
-                    on_event({
-                        "stage": "rethinking_answer",
-                        "type": "end",
-                        "round": i + 1,
-                    })
-                    on_event({
-                        "stage": "rethinking_pass",
-                        "round": i + 1,
-                    })
+                    on_event(
+                        {
+                            "stage": "rethinking_answer",
+                            "type": "end",
+                            "round": i + 1,
+                        }
+                    )
+                    on_event(
+                        {
+                            "stage": "rethinking_pass",
+                            "round": i + 1,
+                        }
+                    )
                 return answer_content
 
             # 没有检查通过，就得按照建议修改
             messages = [
                 {
-                    "role":
-                    "system",
-                    "content":
-                    PPT_MODIFY_PROMPT.format(
+                    "role": "system",
+                    "content": PPT_MODIFY_PROMPT.format(
                         query=self.ppt_info["query"],
                         outline=self.ppt_info["outline"],
-                        reference_content=(reference_content
-                                           if reference_content else ""),
+                        reference_content=(
+                            reference_content if reference_content else ""
+                        ),
                         modify_advice=answer_content,
                     ),
                 },
@@ -434,11 +459,13 @@ class PPTAgent(MCPClient):
             answer_content = ""
             print("=" * 20 + "修改内容" + "=" * 20)
             if on_event:
-                on_event({
-                    "stage": "modify_answer",
-                    "type": "start",
-                    "round": i + 1,
-                })
+                on_event(
+                    {
+                        "stage": "modify_answer",
+                        "type": "start",
+                        "round": i + 1,
+                    }
+                )
 
             async for chunk in response:
                 if not chunk.choices:
@@ -451,20 +478,24 @@ class PPTAgent(MCPClient):
                     print(delta.content, end="", flush=True)
                     answer_content += delta.content
                     if on_event:
-                        on_event({
-                            "stage": "modify_answer",
-                            "type": "token",
-                            "text": delta.content,
-                            "round": i + 1,
-                        })
+                        on_event(
+                            {
+                                "stage": "modify_answer",
+                                "type": "token",
+                                "text": delta.content,
+                                "round": i + 1,
+                            }
+                        )
             # 3. 把修改后的内容赋值给page_content，然后继续下一轮循环
             page_content = answer_content
             if on_event:
-                on_event({
-                    "stage": "modify_answer",
-                    "type": "end",
-                    "round": i + 1,
-                })
+                on_event(
+                    {
+                        "stage": "modify_answer",
+                        "type": "end",
+                        "round": i + 1,
+                    }
+                )
 
         return page_content
 
@@ -472,7 +503,9 @@ class PPTAgent(MCPClient):
 async def main():
     ppt_agent = PPTAgent()
     query = "生成一个关于Python的PPT，不超过5页"
-    reference_content = ("Python是一种高级编程语言，被广泛应用于数据分析、人工智能、Web开发等领域。")
+    reference_content = (
+        "Python是一种高级编程语言，被广泛应用于数据分析、人工智能、Web开发等领域。"
+    )
     await ppt_agent.generate_ppt_outline(query, reference_content)
     await ppt_agent.generate_page_content(
         outline=ppt_agent.ppt_info["outline"],

@@ -33,6 +33,20 @@ function pickBetween(s: string, tag: string): string {
   return m?.[1]?.trim() || ''
 }
 
+function parseBodyJson(bodyStr: string): Record<string, string> | null {
+  try {
+    // Try to parse the body as JSON
+    const parsed = JSON.parse(bodyStr)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as Record<string, string>
+    }
+  } catch (e) {
+    // If parsing fails, return null to fall back to plain text
+    console.warn('Failed to parse body as JSON:', e)
+  }
+  return null
+}
+
 type PageCard = {
   pageNum: string
   title: string
@@ -158,19 +172,35 @@ export default function App() {
           setContentAnswer('')
           setCollapsed((c) => ({ ...c, preview_col: false }))
         } else if (type === 'token') {
-          // 累加原始文本并实时解析 <page> 块形成卡片
+          // 累加原始文本并实时解析 <page> 块形成卡片（JSON 格式）
           setContentAnswer((prev) => {
             const next = prev + (evt.text || '')
             const re = /<page>([\s\S]*?)<\/page>/g
             const found: PageCard[] = []
             let m: RegExpExecArray | null
             while ((m = re.exec(next)) !== null) {
-              const raw = m[1]
-              const pageNum = pickBetween(raw, 'page_num')
-              const title = pickBetween(raw, 'title')
-              const summary = pickBetween(raw, 'summary')
-              const body = pickBetween(raw, 'body')
-              const advice = pickBetween(raw, 'img_table_advice')
+              const raw = m[1].trim()
+              let pageNum = ''
+              let title = ''
+              let summary = ''
+              let body = ''
+              let advice = ''
+              try {
+                const obj = JSON.parse(raw)
+                pageNum = String(obj.page_num || obj.pageNum || '')
+                title = String(obj.title || '')
+                summary = String(obj.summary || '')
+                const b = obj.body
+                body = typeof b === 'string' ? b : JSON.stringify(b || {})
+                advice = String(obj.img_table_advice || obj.imgTableAdvice || '')
+              } catch (e) {
+                // 兼容旧格式（标签）
+                pageNum = pickBetween(raw, 'page_num')
+                title = pickBetween(raw, 'title')
+                summary = pickBetween(raw, 'summary')
+                body = pickBetween(raw, 'body')
+                advice = pickBetween(raw, 'img_table_advice')
+              }
               found.push({ pageNum, title, summary, body, advice, raw })
             }
             setPageCards((old) => {
@@ -211,12 +241,27 @@ export default function App() {
               const cards: PageCard[] = []
               let m: RegExpExecArray | null
               while ((m = re.exec(buf)) !== null) {
-                const raw = m[1]
-                const pageNum = sanitizeTags(pickBetween(raw, 'page_num'))
-                const title = sanitizeTags(pickBetween(raw, 'title'))
-                const summary = sanitizeTags(pickBetween(raw, 'summary'))
-                const body = sanitizeTags(pickBetween(raw, 'body'))
-                const advice = sanitizeTags(pickBetween(raw, 'img_table_advice'))
+                const raw = m[1].trim()
+                let pageNum = ''
+                let title = ''
+                let summary = ''
+                let body = ''
+                let advice = ''
+                try {
+                  const obj = JSON.parse(raw)
+                  pageNum = String(obj.page_num || obj.pageNum || '')
+                  title = String(obj.title || '')
+                  summary = String(obj.summary || '')
+                  const b = obj.body
+                  body = typeof b === 'string' ? b : JSON.stringify(b || {})
+                  advice = String(obj.img_table_advice || obj.imgTableAdvice || '')
+                } catch (e) {
+                  pageNum = sanitizeTags(pickBetween(raw, 'page_num'))
+                  title = sanitizeTags(pickBetween(raw, 'title'))
+                  summary = sanitizeTags(pickBetween(raw, 'summary'))
+                  body = sanitizeTags(pickBetween(raw, 'body'))
+                  advice = sanitizeTags(pickBetween(raw, 'img_table_advice'))
+                }
                 cards.push({ pageNum, title, summary, body, advice, raw })
               }
               if (cards.length) setPageCards(cards)
@@ -230,15 +275,31 @@ export default function App() {
       } else if (stage === 'content_done') {
         const arr: string[] = evt.pages || []
         setPages(arr)
-        // 最终同步一次卡片
-        const cards: PageCard[] = arr.map((p) => ({
-          pageNum: sanitizeTags(pickBetween(p, 'page_num')),
-          title: sanitizeTags(pickBetween(p, 'title')),
-          summary: sanitizeTags(pickBetween(p, 'summary')),
-          body: sanitizeTags(pickBetween(p, 'body')),
-          advice: sanitizeTags(pickBetween(p, 'img_table_advice')),
-          raw: p,
-        }))
+        // 最终同步一次卡片（JSON 格式）
+        const cards: PageCard[] = arr.map((p) => {
+          const raw = p.trim()
+          try {
+            const obj = JSON.parse(raw)
+            const b = obj.body
+            return {
+              pageNum: String(obj.page_num || obj.pageNum || ''),
+              title: String(obj.title || ''),
+              summary: String(obj.summary || ''),
+              body: typeof b === 'string' ? b : JSON.stringify(b || {}),
+              advice: String(obj.img_table_advice || obj.imgTableAdvice || ''),
+              raw,
+            }
+          } catch (e) {
+            return {
+              pageNum: sanitizeTags(pickBetween(raw, 'page_num')),
+              title: sanitizeTags(pickBetween(raw, 'title')),
+              summary: sanitizeTags(pickBetween(raw, 'summary')),
+              body: sanitizeTags(pickBetween(raw, 'body')),
+              advice: sanitizeTags(pickBetween(raw, 'img_table_advice')),
+              raw,
+            }
+          }
+        })
         setPageCards(cards)
       } else if (stage === 'done') {
         const arr: string[] = evt.pages || []
@@ -293,6 +354,10 @@ export default function App() {
   const pageGrid = useMemo(() => {
     return pageCards.map((p, i) => {
       const isOpen = !!expandedPages[i]
+      
+      // Try to parse body as JSON, fall back to plain text if it fails
+      const bodyJson = parseBodyJson(p.body)
+      
       return (
         <div key={i} className="glass p-3 space-y-2">
           <div className="flex items-start justify-between">
@@ -315,7 +380,20 @@ export default function App() {
               {p.body && (
                 <div>
                   <div className="text-slate-400 text-xs mb-1">正文</div>
-                  <pre className="mono whitespace-pre-wrap text-slate-300/90 text-xs max-h-40 overflow-auto">{p.body}</pre>
+                  {bodyJson ? (
+                    // Render structured JSON content
+                    <div className="space-y-2">
+                      {Object.entries(bodyJson).map(([key, value], idx) => (
+                        <div key={idx} className="bg-slate-800/30 rounded p-2">
+                          <div className="text-slate-300 text-sm font-medium mb-1">{key}</div>
+                          <div className="text-slate-300/90 text-xs whitespace-pre-wrap">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // Fall back to plain text rendering
+                    <pre className="mono whitespace-pre-wrap text-slate-300/90 text-xs max-h-40 overflow-auto">{p.body}</pre>
+                  )}
                 </div>
               )}
               {p.advice && (
