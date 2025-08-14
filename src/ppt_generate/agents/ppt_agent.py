@@ -7,6 +7,8 @@ from ppt_generate.prompts.system_prompt import (
     PPT_PAGE_CONTENT_PROMPT,
     PPT_PAGE_RETHINK_PROMPT,
     PPT_MODIFY_PROMPT,
+    PPT_GENERATE_PROMPT,
+    PPT_HTML_TEMPLATE_PROMPT,
 )
 from typing import List, Dict, Any, Callable, Literal, Optional, AsyncIterable
 
@@ -54,6 +56,7 @@ class PPTAgent(MCPClient):
             "reference_content": "",
             "outline": "",
             "pages": [],
+            "html": "",
         }
 
     # 生成PPT大纲与每页主要内容
@@ -499,6 +502,89 @@ class PPTAgent(MCPClient):
 
         return page_content
 
+    async def generate_html(self):
+        """
+        根据每页的内容，采用大模型生成html格式的PPT
+        """
+        # 读取每一页的内容（数组形式，每个数组是一个json）
+        page_content = self.ppt_info["pages"]
+        # 先生成一个html模板
+        messages = [
+            {
+                "role": "system",
+                "content": PPT_HTML_TEMPLATE_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": "用户的需求为：{}".format(self.ppt_info["query"]),
+            },
+        ]
+
+        # 一页一页生成，首先前提就是要形成一个html的PPT模板，不包含任何内容
+        response = await self.llm.chat.completions.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            tool_choice="none",
+            messages=messages,
+            temperature=self.temperature,
+            stream=True,
+        )
+
+        answer_content = ""
+        print("=" * 20 + "html模板生成" + "=" * 20)
+        # 收集回复内容
+        async for chunk in response:
+            if not chunk.choices:
+                print("\nUsage: ")
+                print(chunk.usage)
+                continue
+
+            delta = chunk.choices[0].delta
+            if hasattr(delta, "content") and delta.content:
+                print(delta.content, end="", flush=True)
+                answer_content += delta.content
+
+        full_html = answer_content
+
+        # 现在一页一页来生成html
+        for page_num, page in enumerate(page_content):
+            messages = [
+                {
+                    "role": "system",
+                    "content": PPT_GENERATE_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": "用户的需求为：{}，这一页的内容为：{}".format(
+                        self.ppt_info["query"], page
+                    ),
+                },
+            ]
+
+            response = await self.llm.chat.completions.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                tool_choice="none",
+                messages=messages,
+                temperature=self.temperature,
+                stream=True,
+            )
+
+            # 收集回复内容
+            answer_content = ""
+            print("=" * 20 + "正在生成第{}页的html代码".format(page_num) + "=" * 20)
+
+            async for chunk in response:
+                if not chunk.choices:
+                    print("\nUsage: ")
+                    print(chunk.usage)
+                    continue
+
+                delta = chunk.choices[0].delta
+                if hasattr(delta, "content") and delta.content:
+                    print(delta.content, end="", flush=True)
+                    answer_content += delta.content
+
 
 async def main():
     ppt_agent = PPTAgent()
@@ -512,6 +598,7 @@ async def main():
         rethink=True,
         max_rethink_times=3,
     )
+    await ppt_agent.generate_html()
 
     # print("\n生成完成，完整内容为：")
     # print(ppt_agent.ppt_info["outline"])
