@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Python PPT Template</title>
+    <link href="https://fonts.googleapis.com/css2?family=Microsoft+YaHei&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: #1e1e2f;
+            color: #ffffff;
+            overflow: auto;
+            scroll-behavior: smooth;
+        }
+
+        .ppt-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-sizing: border-box;
+            padding: 40px 60px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .slide {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        h1, h2, h3, p {
+            margin: 0 0 20px 0;
+            line-height: 1.4;
+        }
+
+        h1 {
+            font-size: 36pt;
+            font-weight: bold;
+            color: #00ffe7;
+        }
+
+        h2 {
+            font-size: 28pt;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        h3 {
+            font-size: 20pt;
+            font-weight: bold;
+            color: #dcdcdc;
+        }
+
+        p {
+            font-size: 16pt;
+            color: #bbbbbb;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        ul li::before {
+            content: "•";
+            color: #00ffe7;
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+            margin-left: -1em;
+        }
+
+        .bullet {
+            font-size: 16pt;
+            color: #bbbbbb;
+            margin-bottom: 12px;
+        }
+
+        .title-slide h1 {
+            color: #00ffe7;
+        }
+
+        .content-slide h2 {
+            color: #ffffff;
+        }
+
+        .summary {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #ffd700;
+            margin-top: 40px;
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 20px;
+            right: 60px;
+            font-size: 12pt;
+            color: #888888;
+        }
+
+        @media (max-aspect-ratio: 16/9) {
+            .ppt-container {
+                height: auto;
+            }
+        }
+
+        @media (min-aspect-ratio: 16/9) {
+            .ppt-container {
+                width: auto;
+            }
+        }
+    </style>

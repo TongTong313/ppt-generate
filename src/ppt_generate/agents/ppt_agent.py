@@ -502,9 +502,12 @@ class PPTAgent(MCPClient):
 
         return page_content
 
-    async def generate_html(self):
+    async def generate_html(self, output_path: str = "output.html"):
         """
-        根据每页的内容，采用大模型生成html格式的PPT
+        根据每页的内容，采用大模型生成html格式的PPT，并保存为文件
+
+        Args:
+            output_path (str): 输出HTML文件的路径，默认为output.html
         """
         # 读取每一页的内容（数组形式，每个数组是一个json）
         page_content = self.ppt_info["pages"]
@@ -545,13 +548,14 @@ class PPTAgent(MCPClient):
                 answer_content += delta.content
 
         full_html = answer_content
+        css_template = answer_content
 
         # 现在一页一页来生成html
         for page_num, page in enumerate(page_content):
             messages = [
                 {
                     "role": "system",
-                    "content": PPT_GENERATE_PROMPT,
+                    "content": PPT_GENERATE_PROMPT.format(css_template=css_template),
                 },
                 {
                     "role": "user",
@@ -571,7 +575,6 @@ class PPTAgent(MCPClient):
             )
 
             # 收集回复内容
-            answer_content = ""
             print("=" * 20 + "正在生成第{}页的html代码".format(page_num) + "=" * 20)
 
             async for chunk in response:
@@ -583,12 +586,22 @@ class PPTAgent(MCPClient):
                 delta = chunk.choices[0].delta
                 if hasattr(delta, "content") and delta.content:
                     print(delta.content, end="", flush=True)
-                    answer_content += delta.content
+                    full_html += delta.content
+
+        # 保存完整的HTML内容到文件
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(full_html)
+            print(f"\nHTML文件已成功保存到: {output_path}")
+            self.ppt_info["html"] = full_html
+        except Exception as e:
+            print(f"保存HTML文件时发生错误: {str(e)}")
+            raise
 
 
 async def main():
     ppt_agent = PPTAgent()
-    query = "生成一个关于Python的PPT，不超过5页"
+    query = "生成一个关于Python的PPT，主题内容不超过5页"
     reference_content = (
         "Python是一种高级编程语言，被广泛应用于数据分析、人工智能、Web开发等领域。"
     )
@@ -596,7 +609,7 @@ async def main():
     await ppt_agent.generate_page_content(
         outline=ppt_agent.ppt_info["outline"],
         rethink=True,
-        max_rethink_times=3,
+        max_rethink_times=1,
     )
     await ppt_agent.generate_html()
 
