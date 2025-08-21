@@ -525,7 +525,7 @@ class PPTAgent(MCPClient):
 
         # 一页一页生成，首先前提就是要形成一个html的PPT模板，不包含任何内容
         response = await self.llm.chat.completions.create(
-            model=self.model,
+            model="qwen3-coder-plus",
             max_tokens=self.max_tokens,
             tool_choice="none",
             messages=messages,
@@ -552,6 +552,7 @@ class PPTAgent(MCPClient):
 
         # 现在一页一页来生成html
         for page_num, page in enumerate(page_content):
+            page_html = ""
             messages = [
                 {
                     "role": "system",
@@ -566,7 +567,7 @@ class PPTAgent(MCPClient):
             ]
 
             response = await self.llm.chat.completions.create(
-                model=self.model,
+                model="qwen3-coder-plus",
                 max_tokens=self.max_tokens,
                 tool_choice="none",
                 messages=messages,
@@ -586,7 +587,18 @@ class PPTAgent(MCPClient):
                 delta = chunk.choices[0].delta
                 if hasattr(delta, "content") and delta.content:
                     print(delta.content, end="", flush=True)
-                    full_html += delta.content
+                    page_html += delta.content
+
+                # 检查如果以```html开头，则删除，如果已```结尾也删除
+                if page_html.startswith("```html"):
+                    page_html = page_html[7:]
+                if page_html.endswith("```"):
+                    page_html = page_html[:-3]
+
+            full_html += page_html
+
+        # 加最后一个</html>标签
+        full_html += "</html>"
 
         # 保存完整的HTML内容到文件
         try:

@@ -2,120 +2,228 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Python PPT Template</title>
-    <link href="https://fonts.googleapis.com/css2?family=Microsoft+YaHei&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Presentation</title>
     <style>
-        html, body {
+        @import url('https://fonts.googleapis.com/css2?family=Microsoft+YaHei&display=swap');
+        
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
             font-family: 'Microsoft YaHei', sans-serif;
-            background-color: #1e1e2f;
-            color: #ffffff;
-            overflow: auto;
-            scroll-behavior: smooth;
         }
-
+        
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        
         .ppt-container {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            background-color: #f0f2f5;
+        }
+        
+        .slide {
             width: 100%;
             height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            box-sizing: border-box;
-            padding: 40px 60px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            align-items: center;
+            padding: 40px;
+            background-color: #ffffff;
+            position: relative;
         }
-
-        .slide {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            box-sizing: border-box;
+        
+        .slide::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background-color: #e0e0e0;
         }
-
-        h1, h2, h3, p {
-            margin: 0 0 20px 0;
-            line-height: 1.4;
-        }
-
-        h1 {
+        
+        .title-slide h1 {
             font-size: 36pt;
             font-weight: bold;
-            color: #00ffe7;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
         }
-
-        h2 {
-            font-size: 28pt;
-            font-weight: bold;
-            color: #ffffff;
+        
+        .title-slide h2 {
+            font-size: 24pt;
+            font-weight: normal;
+            color: #7f8c8d;
+            text-align: center;
         }
-
-        h3 {
-            font-size: 20pt;
-            font-weight: bold;
-            color: #dcdcdc;
-        }
-
-        p {
-            font-size: 16pt;
-            color: #bbbbbb;
-        }
-
-        ul {
-            list-style: none;
-            padding-left: 0;
-        }
-
-        ul li::before {
-            content: "•";
-            color: #00ffe7;
-            font-weight: bold;
-            display: inline-block;
-            width: 1em;
-            margin-left: -1em;
-        }
-
-        .bullet {
-            font-size: 16pt;
-            color: #bbbbbb;
-            margin-bottom: 12px;
-        }
-
-        .title-slide h1 {
-            color: #00ffe7;
-        }
-
+        
         .content-slide h2 {
-            color: #ffffff;
-        }
-
-        .summary {
-            font-size: 18pt;
+            font-size: 24pt;
             font-weight: bold;
-            color: #ffd700;
-            margin-top: 40px;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
         }
-
-        .footer {
-            position: absolute;
-            bottom: 20px;
-            right: 60px;
+        
+        .cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        
+        .card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            flex: 1 1 300px;
+            min-width: 280px;
+            max-width: 350px;
+        }
+        
+        .card h3 {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 6px;
+        }
+        
+        .card p {
             font-size: 12pt;
-            color: #888888;
+            color: #34495e;
+            line-height: 1.5;
         }
-
-        @media (max-aspect-ratio: 16/9) {
-            .ppt-container {
-                height: auto;
-            }
+        
+        .summary {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 6px;
+            max-width: 800px;
         }
-
-        @media (min-aspect-ratio: 16/9) {
-            .ppt-container {
-                width: auto;
-            }
+        
+        .toc-slide h2 {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .toc-list {
+            list-style-type: none;
+            padding: 0;
+            max-width: 600px;
+        }
+        
+        .toc-list li {
+            font-size: 16pt;
+            color: #3498db;
+            margin-bottom: 15px;
+            padding: 10px 20px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .toc-list li:hover {
+            background-color: #3498db;
+            color: white;
         }
     </style>
+</head><div class="ppt-container"><div class="slide title-slide"><h1>Python编程语言发展与应用</h1><h2>汇报单位：XX技术中心</h2><h2>汇报时间：2023年Q4</h2><h2>汇报人：张三</h2></div><div class="slide toc-slide">
+    <h2>目录导航</h2>
+    <div class="summary">展示PPT核心结构框架</div>
+    <ul class="toc-list">
+        <li>1. 语言基础认知</li>
+        <li>2. 技术特性解析</li>
+        <li>3. 应用领域全景</li>
+        <li>4. 代码实战演示</li>
+        <li>5. 学习发展路径</li>
+    </ul>
+</div><div class="slide content-slide">
+    <h2>语言基础与特性</h2>
+    <div class="summary">
+        <p>Python作为一门简洁而强大的编程语言，具有清晰的语法结构和丰富的功能特性。其版本演进体现了语言设计的不断完善，尤其从2.x到3.x的重大更新，带来了更现代化的编程支持和更强的兼容性保障。</p>
+    </div>
+    <div class="cards-container">
+        <div class="card">
+            <h3>定义与起源</h3>
+            <p>Python是一种面向对象、解释型的高级编程语言，由Guido van Rossum于1991年首次发布。它以简洁易读的语法著称，强调代码的可读性和开发效率。Python的设计哲学倡导“优雅”、“明确”、“简单”，使得开发者能够用更少的代码表达复杂的概念。自诞生以来，Python迅速在多个领域得到广泛应用，包括Web开发、数据科学、人工智能等。</p>
+        </div>
+        <div class="card">
+            <h3>版本演进对比</h3>
+            <p>当前主流的Python版本为3.11，而2.7已于2020年正式停止支持。两个版本之间存在显著的语法差异，例如print语句与函数的区别、默认编码的不同以及除法运算的行为变化。为了确保项目的长期维护和兼容性，建议统一使用Python 3进行开发。Python 3.x系列持续更新，提供了更好的性能优化和新特性支持。</p>
+        </div>
+        <div class="card">
+            <h3>语法特征</h3>
+            <p>Python采用缩进来定义代码块，这种设计使代码结构清晰且易于阅读。语言本身支持动态类型系统，变量无需声明类型即可使用，并具备自动内存管理机制，极大简化了开发流程。此外，Python还支持多种编程范式，如面向对象编程、函数式编程等，赋予开发者极大的灵活性。其丰富的内置数据结构和标准库也为快速开发提供了坚实基础。</p>
+        </div>
+        <div class="card">
+            <h3>跨平台优势</h3>
+            <p>Python具有出色的跨平台兼容性，能够在Windows、Linux、macOS等多种操作系统上无缝运行。这一特性使其成为企业级应用和开源项目中的首选语言之一。同时，Python拥有庞大的标准库和活跃的第三方库生态系统，涵盖了从网络编程到科学计算的广泛需求。无论是Web开发、自动化脚本还是数据分析，Python都能提供强大的工具支持。</p>
+        </div>
+        <div class="card">
+            <h3>版本特性对比</h3>
+            <table border="1" cellspacing="0" cellpadding="8" style="width:100%;border-collapse:collapse;font-size:12pt;">
+                <tr>
+                    <th>特性</th>
+                    <th>Python 2.x</th>
+                    <th>Python 3.x</th>
+                </tr>
+                <tr>
+                    <td>print语法</td>
+                    <td>print语句</td>
+                    <td>print()函数</td>
+                </tr>
+                <tr>
+                    <td>编码支持</td>
+                    <td>ASCII默认编码</td>
+                    <td>UTF-8默认编码</td>
+                </tr>
+                <tr>
+                    <td>除法运算</td>
+                    <td>整数除法默认截断</td>
+                    <td>精确除法结果</td>
+                </tr>
+                <tr>
+                    <td>库维护</td>
+                    <td>已停止支持</td>
+                    <td>持续更新维护</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div><div class="slide content-slide"><h2>应用领域全景展示</h2><div class="summary">Python在数据分析、人工智能和Web开发三大领域均有广泛应用，凭借其简洁的语法和强大的库支持，成为各行业的首选语言。</div><div class="cards-container"><div class="card"><h3>数据分析</h3><p>Python在数据分析领域表现卓越，Pandas库提供了高效的数据结构和数据分析工具，能够轻松处理大规模数据集。Numpy则为数值计算提供了坚实基础，支持多维数组和矩阵运算。在数据可视化方面，Matplotlib和Seaborn两大库能够生成丰富多样的图表，帮助用户直观地展示数据趋势和模式，使复杂数据变得易于理解。</p></div><div class="card"><h3>人工智能</h3><p>Python是人工智能领域的主导语言，TensorFlow和PyTorch两大深度学习框架为神经网络构建和训练提供了强大支持。Scikit-learn库则涵盖了丰富的机器学习算法，从经典回归到聚类分析，为开发者提供了完整的工具链。这些库的生态系统使得从研究到生产的AI项目开发变得更加高效和便捷。</p></div><div class="card"><h3>Web开发</h3><p>Python在Web开发领域同样表现出色，Django作为一个全功能框架，提供了ORM、认证、管理后台等完整解决方案，适合构建复杂的大型网站。Flask则以其轻量级和灵活性著称，允许开发者按需选择组件，更适合快速原型开发和微服务架构。两者结合Python的简洁语法，大大提升了Web开发效率。</p></div></div></div><div class="slide content-slide">
+    <h2>代码示例与学习建议</h2>
+    <div class="summary">
+        <p>本页通过代码对比展示Python的简洁语法，并提供系统化的学习路径建议，帮助初学者高效掌握Python编程。</p>
+    </div>
+    <div class="cards-container">
+        <div class="card">
+            <h3>代码对比表格</h3>
+            <p>Python在语法设计上强调简洁性和可读性。变量定义无需显式声明类型，解释器会根据赋值自动推断数据类型，这种动态特性极大提升了开发效率。函数使用def关键字定义，通过缩进来表示代码块逻辑结构，使代码层次清晰易懂。异常处理采用try-except语句块，能够有效捕获并处理运行时错误，提高程序健壮性。相较于传统语言如Java或C++，Python省去了大量冗余语法，让开发者更专注于业务逻辑实现。</p>
+        </div>
+        <div class="card">
+            <h3>学习路径建议</h3>
+            <p>建议从基础语法开始系统学习，熟练掌握列表、字典、元组等核心数据结构及文件读写操作。进阶阶段重点理解面向对象编程思想，包括类与对象、继承与多态等概念。根据个人发展方向选择专业领域深入学习，如数据分析可学习pandas、numpy库，人工智能方向掌握TensorFlow或PyTorch框架，Web开发则需熟悉Django或Flask框架。通过参与Kaggle数据科学竞赛或贡献开源项目积累实战经验。持续关注PyCon技术大会和Python增强提案(PEP)了解语言发展趋势。</p>
+        </div>
+    </div>
+</div></html>
